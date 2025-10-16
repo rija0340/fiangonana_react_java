@@ -20,11 +20,23 @@ const List = () => {
         { label: 'Nombre de membres', field: 'membres', isSpecial: true },
     ];
 
-    const handleAddMembers = (familleId) => {
+    const handleAddMembers = async (familleId) => {
         setSelectedFamilleId(familleId);
         setSearchTerm('');
-        setMembers([]);
         setSelectedMembers([]);
+        
+        // Load all members automatically when modal opens
+        setIsLoading(true);
+        try {
+            const response = await membreApi.getAll();
+            const data = response.data || response;
+            setMembers(data);
+        } catch (error) {
+            console.error('Error fetching members:', error);
+        } finally {
+            setIsLoading(false);
+        }
+        
         setIsModalOpen(true);
     };
 
@@ -64,6 +76,17 @@ const List = () => {
     // Get member by ID for display
     const getMemberById = (id) => {
         return members.find(m => m.id === id);
+    };
+
+    const handleRemoveMemberFromFamille = async (familleId, memberId) => {
+        try {
+            await familleApi.removeMember(familleId, memberId);
+            // Trigger a refresh of the famille list to show updated member count
+            setRefreshTrigger(prev => prev + 1);
+        } catch (error) {
+            console.error('Error removing member from famille:', error);
+            // Optionally show an error message
+        }
     };
 
     return (

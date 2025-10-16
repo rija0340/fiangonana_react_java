@@ -1,6 +1,24 @@
+import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
+import familleApi from "../features/famille/services/api";
 
 const Famille = () => {
+    const [familleCount, setFamilleCount] = useState(0);
+
+    useEffect(() => {
+        const fetchFamilleCount = async () => {
+            try {
+                const familles = await familleApi.getAll();
+                setFamilleCount(Array.isArray(familles) ? familles.length : 0);
+            } catch (error) {
+                console.error("Error fetching famille count:", error);
+                setFamilleCount(0);
+            }
+        };
+
+        fetchFamilleCount();
+    }, []);
+
     return ( 
         <>
         <div className="p-6">
@@ -15,8 +33,8 @@ const Famille = () => {
                             </svg>
                         </div>
                         <div className="ml-4">
-                            <h2 className="text-gray-600 text-sm">Total Users</h2>
-                            <p className="text-2xl font-semibold text-gray-800">1,257</p>
+                            <h2 className="text-gray-600 text-sm">Total Familles</h2>
+                            <p className="text-2xl font-semibold text-gray-800">{familleCount.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -60,14 +78,14 @@ const Famille = () => {
                         <div className="flex items-center">
                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                             <div className="ml-4">
-                                <p className="text-sm text-gray-600">New user registered</p>
+                                <p className="text-sm text-gray-600">New famille added</p>
                                 <p className="text-xs text-gray-400">2 minutes ago</p>
                             </div>
                         </div>
                         <div className="flex items-center">
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                             <div className="ml-4">
-                                <p className="text-sm text-gray-600">New order received</p>
+                                <p className="text-sm text-gray-600">Family members updated</p>
                                 <p className="text-xs text-gray-400">5 minutes ago</p>
                             </div>
                         </div>

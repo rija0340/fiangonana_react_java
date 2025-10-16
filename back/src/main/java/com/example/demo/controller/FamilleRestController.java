@@ -65,9 +65,20 @@ public class FamilleRestController {
     
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFamille(@PathVariable Long id) {
-        Optional<Famille> optionalFamille = familleRepository.findById(id);
+        Optional<Famille> optionalFamille = familleRepository.findByIdWithMembres(id);
         
         if (optionalFamille.isPresent()) {
+            Famille famille = optionalFamille.get();
+            
+            // Remove famille reference from all associated members
+            if (famille.getMembres() != null) {
+                famille.getMembres().forEach(membre -> {
+                    membre.setFamille(null);
+                    membreRepository.save(membre);
+                });
+            }
+            
+            // Now delete the famille
             familleRepository.deleteById(id);
             return ResponseEntity.noContent().build();
         } else {
@@ -100,6 +111,25 @@ public class FamilleRestController {
             }
             
             // Return the updated famille with its members
+            return ResponseEntity.ok(familleRepository.findByIdWithMembres(familleId).get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    // Endpoint to remove members from a famille
+    @DeleteMapping("/{familleId}/membres/{membreId}")
+    public ResponseEntity<Famille> removeMemberFromFamille(@PathVariable Long familleId, @PathVariable Long membreId) {
+        Optional<Famille> familleOpt = familleRepository.findByIdWithMembres(familleId);
+        Optional<Membre> membreOpt = membreRepository.findById(membreId);
+        
+        if (familleOpt.isPresent() && membreOpt.isPresent()) {
+            Membre membre = membreOpt.get();
+            // Remove famille reference from the member
+            membre.setFamille(null);
+            membreRepository.save(membre);
+            
+            // Return the updated famille with its remaining members
             return ResponseEntity.ok(familleRepository.findByIdWithMembres(familleId).get());
         } else {
             return ResponseEntity.notFound().build();

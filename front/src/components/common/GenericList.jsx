@@ -31,9 +31,13 @@ const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, r
             .then(() => {
                 // Refresh the list after successful deletion
                 setItems(prevItems => prevItems.filter(item => item.id !== itemId));
+                // Close the modal after successful deletion
+                document.getElementById('my_modal_1').close();
             })
             .catch(error => {
                 console.error(`Error deleting ${modelName}:`, error);
+                // Close the modal even if there's an error
+                document.getElementById('my_modal_1').close();
             });
     };
 
@@ -144,6 +148,31 @@ const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, r
                                                                         <p className="text-sm">{member.occupation || 'Occupation non spécifiée'}</p>
                                                                         <p className="text-xs opacity-70">{member.situation_matrimoniale || '—'}</p>
                                                                     </div>
+                                                                </div>
+                                                                <div className="card-actions justify-end">
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            if (window.confirm(`Êtes-vous sûr de vouloir retirer ${member.nom} ${member.prenom} de cette famille ?`)) {
+                                                                                try {
+                                                                                    await api.removeMember(item.id, member.id);
+                                                                                    // Refresh the list after successful removal
+                                                                                    setItems(prevItems => 
+                                                                                        prevItems.map(famille => 
+                                                                                            famille.id === item.id 
+                                                                                                ? {...famille, membres: famille.membres.filter(m => m.id !== member.id)}
+                                                                                                : famille
+                                                                                        )
+                                                                                    );
+                                                                                } catch (error) {
+                                                                                    console.error('Error removing member from family:', error);
+                                                                                    alert('Erreur lors de la suppression du membre: ' + (error.response?.data?.message || error.message));
+                                                                                }
+                                                                            }
+                                                                        }}
+                                                                        className="btn btn-outline btn-error btn-sm"
+                                                                    >
+                                                                        Retirer
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         </div>

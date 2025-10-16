@@ -1,6 +1,24 @@
+import { useState, useEffect } from "react";
 import { Outlet } from "react-router-dom";
+import kilasyApi from "../api/kilasy";
 
 const Kilasy = () => {
+    const [kilasyCount, setKilasyCount] = useState(0);
+
+    useEffect(() => {
+        const fetchKilasyCount = async () => {
+            try {
+                const kilasys = await kilasyApi.getAll();
+                setKilasyCount(Array.isArray(kilasys) ? kilasys.length : 0);
+            } catch (error) {
+                console.error("Error fetching kilasy count:", error);
+                setKilasyCount(0);
+            }
+        };
+
+        fetchKilasyCount();
+    }, []);
+
     return ( 
         <>
         <div className="p-6">
@@ -15,8 +33,8 @@ const Kilasy = () => {
                             </svg>
                         </div>
                         <div className="ml-4">
-                            <h2 className="text-gray-600 text-sm">Total Users</h2>
-                            <p className="text-2xl font-semibold text-gray-800">1,257</p>
+                            <h2 className="text-gray-600 text-sm">Total Kilasy</h2>
+                            <p className="text-2xl font-semibold text-gray-800">{kilasyCount.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>

@@ -18,7 +18,24 @@ const ModalAddMembre = ({
         <>
             <div className="modal modal-open">
                 <div className="modal-box w-11/12 max-w-7xl max-h-screen h-screen">
-                    <h3 className="font-bold text-lg">Ajouter des membres à la famille</h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-lg">Ajouter des membres à la famille</h3>
+                        <div className="flex gap-2">
+                            <button 
+                                className="btn btn-outline btn-sm"
+                                onClick={() => setIsModalOpen(false)}
+                            >
+                                Annuler
+                            </button>
+                            <button 
+                                className="btn btn-primary btn-sm"
+                                onClick={handleAddMembersToFamille}
+                                disabled={selectedMembers.length === 0}
+                            >
+                                Ajouter ({selectedMembers.length})
+                            </button>
+                        </div>
+                    </div>
                     
                     {/* Selected members */}
                     {selectedMembers.length > 0 && (
@@ -74,31 +91,6 @@ const ModalAddMembre = ({
                                     onChange={handleSearchChange}
                                 />
                             </div>
-                            
-                            {/* Fetch and display all members */}
-                            {!members.length > 0 && (
-                            <button 
-                                className="btn btn-outline mb-4"
-                                onClick={async () => {
-                                    setIsLoading(true);
-                                    try {
-                                        const response = await membreApi.getAll();
-                                        const data = response.data || response;
-                                        setMembers(data);
-                                    } catch (error) {
-                                        console.error('Error fetching members:', error);
-                                    } finally {
-                                        setIsLoading(false);
-                                    }
-                                }}
-                            >
-                                {isLoading ? (
-                                    <span className="loading loading-spinner"></span>
-                                ) : (
-                                    "Charger tous les membres"
-                                )}
-                            </button> )
-                            }
                             
                             {members.length > 0 ? (
                                 <div className="overflow-x-auto">
@@ -164,7 +156,7 @@ const ModalAddMembre = ({
                                     <p className="text-gray-500 mb-4">
                                         {isLoading 
                                             ? "Chargement des membres..." 
-                                            : "Cliquez sur \"Charger tous les membres\" pour afficher la liste"}
+                                            : "Chargement des membres en cours..."}
                                     </p>
                                     {isLoading && (
                                         <progress className="progress progress-primary w-56"></progress>
@@ -174,22 +166,6 @@ const ModalAddMembre = ({
                         </div>
                     </div>
 
-                    {/* Modal actions */}
-                    <div className="modal-action">
-                        <button 
-                            className="btn btn-outline"
-                            onClick={() => setIsModalOpen(false)}
-                        >
-                            Annuler
-                        </button>
-                        <button 
-                            className="btn btn-primary"
-                            onClick={handleAddMembersToFamille}
-                            disabled={selectedMembers.length === 0}
-                        >
-                            Ajouter ({selectedMembers.length})
-                        </button>
-                    </div>
                 </div>
             </div>
         
