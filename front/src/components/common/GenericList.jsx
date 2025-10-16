@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, refreshTrigger }) => {
+const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, refreshTrigger, showStats, statsConfig }) => {
     const [items, setItems] = useState([]);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [expandedFamilyId, setExpandedFamilyId] = useState(null); // For expanding family members
@@ -62,6 +62,28 @@ const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, r
                         )}
                     </div>
                 </div>
+                
+                {modelName === 'membre' && items.length > 0 && (
+                    <div className="mb-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="stat bg-primary text-primary-content p-4 rounded-box">
+                                <div className="stat-figure text-3xl">♂</div>
+                                <div className="stat-title">Masculin</div>
+                                <div className="stat-value">{items.filter(membre => membre.sexe?.toLowerCase() === 'homme' || membre.sexe?.toLowerCase() === 'm').length}</div>
+                            </div>
+                            <div className="stat bg-secondary text-secondary-content p-4 rounded-box">
+                                <div className="stat-figure text-3xl">♀</div>
+                                <div className="stat-title">Féminin</div>
+                                <div className="stat-value">{items.filter(membre => membre.sexe?.toLowerCase() === 'femme' || membre.sexe?.toLowerCase() === 'f').length}</div>
+                            </div>
+                            <div className="stat bg-accent text-accent-content p-4 rounded-box">
+                                <div className="stat-figure text-3xl">✝</div>
+                                <div className="stat-title">Baptisé(e)s</div>
+                                <div className="stat-value">{items.filter(membre => membre.date_bapteme !== null && membre.date_bapteme !== undefined && membre.date_bapteme !== '').length}</div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <table className="table">
                     <thead>
                         <tr>
@@ -82,9 +104,11 @@ const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, r
                                     {headers.map((header) => (
                                         <td key={header.field}>
                                             <div className={header.field === 'description' ? 'max-w-xs truncate' : ''}>
-                                                {header.isSpecial && (header.field === 'mambras' || header.field === 'membres')
-                                                    ? (item[header.field] ? item[header.field].length : 0)
-                                                    : (item[header.field] || '—')}
+                                                {header.render
+                                                    ? header.render(item[header.field])
+                                                    : header.isSpecial && (header.field === 'mambras' || header.field === 'membres')
+                                                        ? (item[header.field] ? item[header.field].length : 0)
+                                                        : (item[header.field] || '—')}
                                             </div>
                                         </td>
                                     ))}
