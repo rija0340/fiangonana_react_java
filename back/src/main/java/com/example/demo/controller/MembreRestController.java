@@ -1,0 +1,124 @@
+package com.example.demo.controller;
+
+import com.example.demo.model.Famille;
+import com.example.demo.model.Membre;
+import com.example.demo.repository.FamilleRepository;
+import com.example.demo.repository.MembreRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/membres")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:8082"})
+public class MembreRestController {
+    @Autowired
+    private final MembreRepository membreRepository;
+    
+    @Autowired
+    private final FamilleRepository familleRepository;
+
+    public MembreRestController(MembreRepository membreRepository, FamilleRepository familleRepository) {
+        this.membreRepository = membreRepository;
+        this.familleRepository = familleRepository;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Membre>> listMembre() {
+        List<Membre> membres = membreRepository.findAll();
+
+        return ResponseEntity.ok(membres); 
+    }
+    
+    @GetMapping("/{id}")
+    public ResponseEntity<Membre> getMembreById(@PathVariable Long id) {
+        Optional<Membre> membre = membreRepository.findById(id);
+        return membre.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+    }
+    
+    @PostMapping
+    public ResponseEntity<Membre> createMembre(@RequestBody Membre membre) {
+        System.out.println("Received user: " + membre); 
+
+        // Handle famille assignment if provided
+        if (membre.getFamille() != null && membre.getFamille().getId() != null) {
+            Optional<Famille> famille = familleRepository.findById(membre.getFamille().getId());
+            if (famille.isPresent()) {
+                membre.setFamille(famille.get());
+            }
+        }
+
+        Membre savedMembre = membreRepository.save(membre);
+        return ResponseEntity.ok(savedMembre);
+    }
+    
+    @PutMapping("/{id}")
+    public ResponseEntity<Membre> updateMembre(@PathVariable Long id, @RequestBody Membre membreDetails) {
+        Optional<Membre> optionalMembre = membreRepository.findById(id);
+        
+        if (optionalMembre.isPresent()) {
+            Membre membre = optionalMembre.get();
+            // Update all fields
+            membre.setNom(membreDetails.getNom());
+            membre.setPrenom(membreDetails.getPrenom());
+            membre.setDate_naissance(membreDetails.getDate_naissance());
+            membre.setSexe(membreDetails.getSexe());
+            membre.setDate_bapteme(membreDetails.getDate_bapteme());
+            membre.setTelephone(membreDetails.getTelephone());
+            membre.setSituation_matrimoniale(membreDetails.getSituation_matrimoniale());
+            membre.setOccupation(membreDetails.getOccupation());
+            membre.setObservations(membreDetails.getObservations());
+            membre.setPerson_code(membreDetails.getPerson_code());
+            
+            // Handle famille assignment if provided
+            if (membreDetails.getFamille() != null) {
+                if (membreDetails.getFamille().getId() != null) {
+                    Optional<Famille> famille = familleRepository.findById(membreDetails.getFamille().getId());
+                    if (famille.isPresent()) {
+                        membre.setFamille(famille.get());
+                    }
+                } else {
+                    membre.setFamille(null); // Remove famille if id is null
+                }
+            }
+
+            Membre updatedMembre = membreRepository.save(membre);
+            return ResponseEntity.ok(updatedMembre);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMembre(@PathVariable Long id) {
+        Optional<Membre> optionalMembre = membreRepository.findById(id);
+        
+        if (optionalMembre.isPresent()) {
+            membreRepository.deleteById(id);
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+    
+    @DeleteMapping
+    public ResponseEntity<Void> deleteAllMembres() {
+        membreRepository.deleteAll();
+        return ResponseEntity.noContent().build();
+    }
+    
+    // Additional endpoint to get membres by famille
+    @GetMapping("/famille/{familleId}")
+    public ResponseEntity<List<Membre>> getMembresByFamilleId(@PathVariable Long familleId) {
+        Optional<Famille> famille = familleRepository.findById(familleId);
+        if (famille.isPresent()) {
+            List<Membre> membres = membreRepository.findByFamilleId(familleId);
+            return ResponseEntity.ok(membres);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+}

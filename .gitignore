@@ -1,0 +1,50 @@
+# === GLOBAL OS FILES ===
+.DS_Store
+Thumbs.db
+
+# === IDE FILES (IntelliJ, VSCode, Eclipse, etc.) ===
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+.project
+.classpath
+.settings/
+
+# === FRONT-END: React (in /front) ===
+front/node_modules/
+front/.env
+front/.next/
+front/build/
+front/dist/
+front/coverage/
+front/.turbo/
+front/package-lock.json
+front/yarn.lock
+
+# === BACK-END: Spring Boot (in /back) ===
+back/target/
+back/build/
+back/.env
+back/*.log
+back/*.tmp
+back/*.bak
+back/*.class
+back/*.jar
+back/*.war
+
+# Spring Boot properties (if secrets are stored here)
+back/application.properties
+back/application-dev.properties
+back/application-prod.properties
+back/application-local.properties
+
+# === JAVA BUILD SYSTEMS ===
+**/out/
+
+# === LOGS (anywhere) ===
+*.log
+
+# === ENV FILES (anywhere) ===
+*.env

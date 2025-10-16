@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout(~{::body/content})}">
+<body>
+    <div th:fragment="content">
+        <div class="jumbotron">
+            <h1 class="display-4">Welcome to the Demo Application!</h1>
+            <p class="lead">This is a simple CRUD application using Spring Boot and SQLite.</p>
+            <hr class="my-4">
+            <p>Manage products using the navigation bar above.</p>
+            <a class="btn btn-primary btn-lg" href="/products" role="button">View Products</a>
+        </div>
+    </div>
+</body>
+</html>

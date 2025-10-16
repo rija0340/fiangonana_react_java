@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layout :: layout(~{::body/content})}">
+<body>
+    <div th:fragment="content">
+        <h2>Add Product</h2>
+        
+        <form th:action="@{/products}" th:object="${product}" method="post">
+            <div class="mb-3">
+                <label for="name" class="form-label">Name:</label>
+                <input type="text" class="form-control" id="name" th:field="*{name}" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="description" class="form-label">Description:</label>
+                <textarea class="form-control" id="description" th:field="*{description}" rows="3"></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="price" class="form-label">Price:</label>
+                <input type="number" class="form-control" id="price" th:field="*{price}" step="0.01" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="category" class="form-label">Category:</label>
+                <select class="form-control" id="category" th:field="*{category.id}">
+                    <option value="">Select a Category</option>
+                    <option th:each="cat : ${categories}" 
+                            th:value="${cat.id}" 
+                            th:text="${cat.name}"></option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="/products" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</body>
+</html>
