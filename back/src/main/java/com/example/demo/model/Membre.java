@@ -15,6 +15,7 @@ public class Membre {
     private String date_naissance;
     private String sexe;
     private String date_bapteme;
+    private String date_bapteme;
     private String telephone;
     private String situation_matrimoniale;
     private String occupation;

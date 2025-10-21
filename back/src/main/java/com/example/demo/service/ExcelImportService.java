@@ -107,6 +107,7 @@ public class ExcelImportService {
             String situationMatrimoniale = getCellValueAsString(row.getCell(27)); // situation_matrimoniale
             String occupation = getCellValueAsString(row.getCell(31)); // occupation
             String dateBapteme = parseDate(getCellValueAsString(row.getCell(41))); // date_bapteme
+            String categorie = parseDate(getCellValueAsString(row.getCell(48))); // categorie
             String observations = getCellValueAsString(row.getCell(50)); // observations
 
             System.out.println("Processing row data - Nom: " + nom + ", Person Code: " + personCode);
@@ -121,6 +122,7 @@ public class ExcelImportService {
             membre.setSituation_matrimoniale(situationMatrimoniale);
             membre.setOccupation(occupation);
             membre.setDate_bapteme(dateBapteme);
+            membre.setCategorie(categorie);
             membre.setObservations(observations);
 
             // Validate required fields

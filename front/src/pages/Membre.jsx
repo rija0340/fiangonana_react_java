@@ -4,6 +4,7 @@ import membreApi from "../features/membre/services/api";
 
 const Membre = () => {
     const [membreCount, setMembreCount] = useState(0);
+    
 
     useEffect(() => {
         const fetchMembreCount = async () => {
@@ -21,6 +22,7 @@ const Membre = () => {
 
     return ( 
         <>
+
         <div className="p-6">
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">

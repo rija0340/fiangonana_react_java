@@ -26,10 +26,42 @@ public class MembreRestController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Membre>> listMembre() {
+    public ResponseEntity<List<Membre>> listMembre(
+        @RequestParam(required = false) String sexe,
+        @RequestParam(required = false) String baptise,
+        @RequestParam(required = false) String search
+    ) {
+        
         List<Membre> membres = membreRepository.findAll();
+        
+        if (sexe != null && !sexe.equalsIgnoreCase("all")) {
+                membres = membres.stream()
+                        .filter(m -> m.getSexe().equalsIgnoreCase(sexe))
+                        .toList();
+            }
 
-        return ResponseEntity.ok(membres); 
+            if (baptise != null) {
+
+                if(baptise.equalsIgnoreCase("true")){
+                    membres = membres.stream()
+                        .filter(m -> m.getDate_bapteme() != null)
+                        .toList();
+                }
+                if(baptise.equalsIgnoreCase("false")){
+                    membres = membres.stream()
+                        .filter(m -> m.getDate_bapteme() == "")
+                        .toList();
+                }
+            }
+
+            if (search != null && !search.isEmpty()) {
+                membres = membres.stream()
+                        .filter(m -> m.getNom().toLowerCase().contains(search.toLowerCase()) ||
+                                    m.getPrenom().toLowerCase().contains(search.toLowerCase()))
+                        .toList();
+            }
+
+            return ResponseEntity.ok(membres);
     }
     
     @GetMapping("/{id}")

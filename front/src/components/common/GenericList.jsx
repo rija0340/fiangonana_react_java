@@ -10,8 +10,6 @@ const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, r
     useEffect(() => {
         api.getAll().then(response => {
             const data = response;
-            console.log("reto e data");
-            console.log(data);
             setItems(data);
         }).catch(error => {
             console.error(`Error fetching ${modelName}s:`, error);
@@ -55,35 +53,11 @@ const GenericList = ({ modelName, api, headers, onAddMembers, onImportMembres, r
                         <button onClick={handleCreateItem} className="btn btn-primary">
                             Ajouter un {modelName}
                         </button>
-                        {modelName === 'membre' && onImportMembres && (
-                            <button onClick={onImportMembres} className="btn btn-secondary">
-                                Importer des membres
-                            </button>
-                        )}
+                        {/* Remove member-specific import button - it should be handled by parent components */}
                     </div>
                 </div>
                 
-                {modelName === 'membre' && items.length > 0 && (
-                    <div className="mb-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="stat bg-primary text-primary-content p-4 rounded-box">
-                                <div className="stat-figure text-3xl">♂</div>
-                                <div className="stat-title">Masculin</div>
-                                <div className="stat-value">{items.filter(membre => membre.sexe?.toLowerCase() === 'homme' || membre.sexe?.toLowerCase() === 'm').length}</div>
-                            </div>
-                            <div className="stat bg-secondary text-secondary-content p-4 rounded-box">
-                                <div className="stat-figure text-3xl">♀</div>
-                                <div className="stat-title">Féminin</div>
-                                <div className="stat-value">{items.filter(membre => membre.sexe?.toLowerCase() === 'femme' || membre.sexe?.toLowerCase() === 'f').length}</div>
-                            </div>
-                            <div className="stat bg-accent text-accent-content p-4 rounded-box">
-                                <div className="stat-figure text-3xl">✝</div>
-                                <div className="stat-title">Baptisé(e)s</div>
-                                <div className="stat-value">{items.filter(membre => membre.date_bapteme !== null && membre.date_bapteme !== undefined && membre.date_bapteme !== '').length}</div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {/* Remove member-specific statistics - it should be handled by parent components */}
                 <table className="table">
                     <thead>
                         <tr>
