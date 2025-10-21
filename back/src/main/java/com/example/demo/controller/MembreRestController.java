@@ -31,7 +31,7 @@ public class MembreRestController {
         @RequestParam(required = false) String baptise,
         @RequestParam(required = false) String search
     ) {
-        
+        System.out.println("Received sexe: " + sexe + " and baptise: " + baptise + " and search: " + search);
         List<Membre> membres = membreRepository.findAll();
         
         if (sexe != null && !sexe.equalsIgnoreCase("all")) {
@@ -49,7 +49,7 @@ public class MembreRestController {
                 }
                 if(baptise.equalsIgnoreCase("false")){
                     membres = membres.stream()
-                        .filter(m -> m.getDate_bapteme() == "")
+                        .filter(m -> m.getDate_bapteme() == null)
                         .toList();
                 }
             }

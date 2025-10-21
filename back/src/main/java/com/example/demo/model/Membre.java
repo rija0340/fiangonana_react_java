@@ -15,7 +15,7 @@ public class Membre {
     private String date_naissance;
     private String sexe;
     private String date_bapteme;
-    private String date_bapteme;
+    private String categorie;
     private String telephone;
     private String situation_matrimoniale;
     private String occupation;
@@ -33,7 +33,7 @@ public class Membre {
 
     // Constructor
     public Membre(String nom, String prenom, String date_naissance, String sexe, 
-                 String date_bapteme, String telephone, String situation_matrimoniale, 
+                 String date_bapteme, String categorie, String telephone, String situation_matrimoniale, 
                  String occupation, String observations, String person_code) {
         this.nom = nom;
         this.prenom = prenom;
@@ -44,6 +44,7 @@ public class Membre {
         this.situation_matrimoniale = situation_matrimoniale;
         this.occupation = occupation;
         this.observations = observations;
+        this.categorie = categorie;
         this.person_code = person_code;
     }
 
@@ -70,7 +71,8 @@ public class Membre {
     public void setObservations(String observations) { this.observations = observations; }
     public String getPerson_code() { return person_code; }
     public void setPerson_code(String person_code) { this.person_code = person_code; }
-    
+    public String getCategorie() { return categorie; }
+    public void setCategorie(String categorie) { this.categorie = categorie; }
     // Famille relationship getters and setters
     public Famille getFamille() { return famille; }
     public void setFamille(Famille famille) { this.famille = famille; }

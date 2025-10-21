@@ -139,7 +139,7 @@ const MembreList = () => {
                         </div>
                 {membres.length > 0 && (
                     <div className="mb-6">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                             <div className="stat bg-accent text-primary-content p-4 rounded-box">
                                 <div className="stat-figure text-3xl">♂</div>
                                 <div className="stat-title">Total</div>
@@ -160,6 +160,11 @@ const MembreList = () => {
                                 <div className="stat-title">Baptisé(e)s</div>
                                 <div className="stat-value">{membres.filter(membre => membre.date_bapteme !== null && membre.date_bapteme !== undefined && membre.date_bapteme !== '').length}</div>
                             </div>
+                            <div className="stat bg-primary text-accent-content p-4 rounded-box">
+                                <div className="stat-figure text-3xl">✝</div>
+                                <div className="stat-title">Nont Baptisé(e)s</div>
+                                <div className="stat-value">{membres.filter(membre => membre.date_bapteme == null).length}</div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -172,6 +177,7 @@ const MembreList = () => {
                             <th>Famille</th>
                             <th>Sexe</th>
                             <th className="text-center">Baptisé(e)</th>
+                             <th className="text-center">Categorie</th>
                             <th className="text-center">Action</th>
                         </tr>
                     </thead>
@@ -188,6 +194,7 @@ const MembreList = () => {
                                 <td className="text-center">
                                     {membre.date_bapteme && membre.date_bapteme !== '' ? '✓' : '✗'}
                                 </td>
+                                <td>{membre.categorie || '—'}</td>
                                 <td>
                                     <div className="flex justify-center">
                                         <button
@@ -218,6 +225,7 @@ const MembreList = () => {
                             <th>Famille</th>
                             <th>Sexe</th>
                             <th className="text-center">Baptisé(e)</th>
+                            <th className="text-center">Categorie</th>
                             <th>Action</th>
                         </tr>
                     </tfoot>

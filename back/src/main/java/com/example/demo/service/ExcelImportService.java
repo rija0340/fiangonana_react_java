@@ -16,6 +16,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ExcelImportService {
@@ -44,13 +45,27 @@ public class ExcelImportService {
                 
                 Membre membre = mapRowToMembre(currentRow);
                 if (membre != null) {
-                    // Validate the membre object
-                    // String validationError = validateMembre(membre, rowNum);
-                    // if (validationError == null) {
+                    // Check if member already exists based on person_code
+                    Optional<Membre> existingMembreOpt = membreRepository.findByPersonCode(membre.getPerson_code());
+                    
+                    if (existingMembreOpt.isPresent()) {
+                        // Update existing member with new data
+                        Membre existingMembre = existingMembreOpt.get();
+                        
+                        // Update fields only if there are changes
+                        boolean hasChanges = updateMembreIfChanged(existingMembre, membre);
+                        
+                        if (hasChanges) {
+                            membres.add(existingMembre);
+                            System.out.println("Updated member with person_code: " + existingMembre.getPerson_code());
+                        } else {
+                            System.out.println("No changes detected for member with person_code: " + existingMembre.getPerson_code());
+                        }
+                    } else {
+                        // Add new member
                         membres.add(membre);
-                    // } else {
-                    //     System.out.println("Validation error at row " + rowNum + ": " + validationError);
-                    // }
+                        System.out.println("Added new member with person_code: " + membre.getPerson_code());
+                    }
                 } else {
                     System.out.println("Skipping invalid row " + rowNum);
                 }
@@ -59,6 +74,90 @@ public class ExcelImportService {
         
         // Save all membres to database
         return membreRepository.saveAll(membres);
+    }
+    
+    private boolean updateMembreIfChanged(Membre existingMembre, Membre newMembre) {
+        boolean hasChanges = false;
+        
+        // Compare and update each field
+        if (!areEqual(existingMembre.getNom(), newMembre.getNom())) {
+            existingMembre.setNom(newMembre.getNom());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getPrenom(), newMembre.getPrenom())) {
+            existingMembre.setPrenom(newMembre.getPrenom());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getDate_naissance(), newMembre.getDate_naissance())) {
+            existingMembre.setDate_naissance(newMembre.getDate_naissance());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getTelephone(), newMembre.getTelephone())) {
+            existingMembre.setTelephone(newMembre.getTelephone());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getSexe(), newMembre.getSexe())) {
+            existingMembre.setSexe(newMembre.getSexe());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getSituation_matrimoniale(), newMembre.getSituation_matrimoniale())) {
+            existingMembre.setSituation_matrimoniale(newMembre.getSituation_matrimoniale());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getOccupation(), newMembre.getOccupation())) {
+            existingMembre.setOccupation(newMembre.getOccupation());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getDate_bapteme(), newMembre.getDate_bapteme())) {
+            existingMembre.setDate_bapteme(newMembre.getDate_bapteme());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getCategorie(), newMembre.getCategorie())) {
+            existingMembre.setCategorie(newMembre.getCategorie());
+            hasChanges = true;
+        }
+        
+        if (!areEqual(existingMembre.getObservations(), newMembre.getObservations())) {
+            existingMembre.setObservations(newMembre.getObservations());
+            hasChanges = true;
+        }
+        
+        return hasChanges;
+    }
+    
+    private boolean areEqual(String str1, String str2) {
+        // Handle null cases
+        if (str1 == null && str2 == null) {
+            return true;
+        }
+        if (str1 == null || str2 == null) {
+            // Treat both empty string and null as equal
+            if ((str1 == null && str2 != null && str2.trim().isEmpty()) ||
+                (str2 == null && str1 != null && str1.trim().isEmpty())) {
+                return true;
+            }
+            return false;
+        }
+        // Compare trimmed values, treating empty strings as equivalent to null
+        String val1 = str1.trim();
+        String val2 = str2.trim();
+        
+        boolean isEmpty1 = val1.isEmpty();
+        boolean isEmpty2 = val2.isEmpty();
+        
+        if (isEmpty1 && isEmpty2) {
+            return true;
+        }
+        
+        return str1.equals(str2);
     }
 
     private String validateMembre(Membre membre, int rowNum) {
@@ -107,7 +206,7 @@ public class ExcelImportService {
             String situationMatrimoniale = getCellValueAsString(row.getCell(27)); // situation_matrimoniale
             String occupation = getCellValueAsString(row.getCell(31)); // occupation
             String dateBapteme = parseDate(getCellValueAsString(row.getCell(41))); // date_bapteme
-            String categorie = parseDate(getCellValueAsString(row.getCell(48))); // categorie
+            String categorie = parseDate(getCellValueAsString(row.getCell(47))); // categorie
             String observations = getCellValueAsString(row.getCell(50)); // observations
 
             System.out.println("Processing row data - Nom: " + nom + ", Person Code: " + personCode);
