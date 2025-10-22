@@ -6,20 +6,30 @@ const MembreList = () => {
     
     const [membres, setMembres] = useState([]);
     const [selectedMembreId, setSelectedMembreId] = useState(null);
+    const [categories, setCategories] = useState([]);
     const [filters, setFilters] = useState({
         search: "",
         sexe: "all",
         baptise: "all",
+        categorie: "all",
     });
     
     const navigate = useNavigate();
 
     useEffect(() => {
+        // Fetch members
         api.getAll(filters).then(response => {
             const data = response;
             setMembres(data);
         }).catch(error => {
             console.error('Error fetching membres:', error);
+        });
+        
+        // Fetch categories for the filter
+        api.getCategories().then(response => {
+            setCategories(response);
+        }).catch(error => {
+            console.error('Error fetching categories:', error);
         });
     }, [filters]);
 
@@ -89,7 +99,7 @@ const MembreList = () => {
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {/* Sexe Filter */}
                             <div className="form-control">
                             <label className="label">
@@ -135,6 +145,24 @@ const MembreList = () => {
                                 ))}
                             </div>
                             </div>
+                            
+                            {/* Categorie Filter */}
+                            <div className="form-control">
+                                <label className="label">
+                                    <span className="label-text font-semibold">Catégorie</span>
+                                </label>
+                                <select
+                                    className="select select-bordered w-full"
+                                    value={filters.categorie}
+                                    onChange={(e) => handleFilterChange("categorie", e.target.value)}
+                                >
+                                    <option value="all">Toutes les catégories</option>
+                                    <option value="non_categorie">Non catégorisé</option>
+                                    {categories.map((category, index) => (
+                                        <option key={index} value={category}>{category}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                         </div>
                 {membres.length > 0 && (
@@ -174,7 +202,6 @@ const MembreList = () => {
                             <th></th>
                             <th>Nom</th>
                             <th>prenom</th>
-                            <th>Famille</th>
                             <th>Sexe</th>
                             <th className="text-center">Baptisé(e)</th>
                              <th className="text-center">Categorie</th>
@@ -189,12 +216,12 @@ const MembreList = () => {
                                 </th>
                                 <td>{membre.nom || '—'}</td>
                                 <td>{membre.prenom || '—'}</td>
-                                <td>{membre.famille ? membre.famille.nom : '—'}</td>
+                                {/* <td>{membre.famille ? membre.famille.nom : '—'}</td> */}
                                 <td>{membre.sexe || '—'}</td>
                                 <td className="text-center">
-                                    {membre.date_bapteme && membre.date_bapteme !== '' ? '✓' : '✗'}
+                                    {membre.date_bapteme && membre.date_bapteme !== '' ? <span className="badge badge-success">baptisé</span> : <span className="badge badge-error">non-baptisé</span>}
                                 </td>
-                                <td>{membre.categorie || '—'}</td>
+                                <td className="text-center">{membre.categorie || '—'}</td>
                                 <td>
                                     <div className="flex justify-center">
                                         <button
@@ -222,7 +249,7 @@ const MembreList = () => {
                             <th></th>
                             <th>Nom</th>
                             <th>prenom</th>
-                            <th>Famille</th>
+                            {/* <th>Famille</th> */}
                             <th>Sexe</th>
                             <th className="text-center">Baptisé(e)</th>
                             <th className="text-center">Categorie</th>

@@ -29,9 +29,10 @@ public class MembreRestController {
     public ResponseEntity<List<Membre>> listMembre(
         @RequestParam(required = false) String sexe,
         @RequestParam(required = false) String baptise,
-        @RequestParam(required = false) String search
+        @RequestParam(required = false) String search,
+        @RequestParam(required = false) String categorie
     ) {
-        System.out.println("Received sexe: " + sexe + " and baptise: " + baptise + " and search: " + search);
+        System.out.println("Received sexe: " + sexe + " and baptise: " + baptise + " and search: " + search + " and categorie: " + categorie);
         List<Membre> membres = membreRepository.findAll();
         
         if (sexe != null && !sexe.equalsIgnoreCase("all")) {
@@ -59,6 +60,20 @@ public class MembreRestController {
                         .filter(m -> m.getNom().toLowerCase().contains(search.toLowerCase()) ||
                                     m.getPrenom().toLowerCase().contains(search.toLowerCase()))
                         .toList();
+            }
+            
+            if (categorie != null) {
+                if (categorie.equalsIgnoreCase("non_categorie")) {
+                    // Filter members with empty or null categories
+                    membres = membres.stream()
+                            .filter(m -> m.getCategorie() == null || m.getCategorie().isEmpty() || m.getCategorie().trim().isEmpty())
+                            .toList();
+                } else if (!categorie.equalsIgnoreCase("all")) {
+                    // Filter members with specific category
+                    membres = membres.stream()
+                            .filter(m -> m.getCategorie() != null && m.getCategorie().equalsIgnoreCase(categorie))
+                            .toList();
+                }
             }
 
             return ResponseEntity.ok(membres);
@@ -152,5 +167,19 @@ public class MembreRestController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+    
+    // Endpoint to get all unique categories
+    @GetMapping("/categories")
+    public ResponseEntity<List<String>> getAllCategories() {
+        List<String> categories = membreRepository.findAll()
+                .stream()
+                .map(Membre::getCategorie)
+                .filter(categorie -> categorie != null && !categorie.trim().isEmpty())
+                .distinct()
+                .sorted()
+                .toList();
+        
+        return ResponseEntity.ok(categories);
     }
 }

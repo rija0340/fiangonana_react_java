@@ -16,4 +16,10 @@ api.import = async (file) => {
   return response.data;
 };
 
+// Add endpoint to get all categories
+api.getCategories = async () => {
+  const response = await axios.get('http://localhost:8082/api/membres/categories');
+  return response.data;
+};
+
 export default api;
