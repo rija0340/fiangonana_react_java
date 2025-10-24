@@ -158,6 +158,7 @@ const MembreList = () => {
                                 >
                                     <option value="all">Toutes les catégories</option>
                                     <option value="non_categorie">Non catégorisé</option>
+                                    <option value="categorie">Catégorisé</option>
                                     {categories.map((category, index) => (
                                         <option key={index} value={category}>{category}</option>
                                     ))}

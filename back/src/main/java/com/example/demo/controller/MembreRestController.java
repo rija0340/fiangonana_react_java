@@ -68,7 +68,12 @@ public class MembreRestController {
                     membres = membres.stream()
                             .filter(m -> m.getCategorie() == null || m.getCategorie().isEmpty() || m.getCategorie().trim().isEmpty())
                             .toList();
-                } else if (!categorie.equalsIgnoreCase("all")) {
+                }else if (categorie.equalsIgnoreCase("categorie")) {
+                    // Filter members with specific category
+                    membres = membres.stream()
+                            .filter(m -> m.getCategorie() != null)
+                            .toList();
+                }else if (!categorie.equalsIgnoreCase("all")) {
                     // Filter members with specific category
                     membres = membres.stream()
                             .filter(m -> m.getCategorie() != null && m.getCategorie().equalsIgnoreCase(categorie))
