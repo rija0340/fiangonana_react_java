@@ -223,6 +223,7 @@ public class ExcelImportService {
             membre.setDate_bapteme(dateBapteme);
             membre.setCategorie(categorie);
             membre.setObservations(observations);
+            membre.setSource("import");
 
             // Validate required fields
             if (nom != null && !nom.trim().isEmpty()) {

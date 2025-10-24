@@ -224,23 +224,33 @@ const MembreList = () => {
                                 </td>
                                 <td className="text-center">{membre.categorie || '—'}</td>
                                 <td>
-                                    <div className="flex justify-center">
+                                    {membre.source === 'manuel' && (
+
+                                        <div className="flex justify-center">
                                         <button
                                             onClick={() => handleEditMembre(membre.id)}
                                             className="btn btn-outline btn-success mr-1"
-                                        >
+                                            >
                                             Modifier
                                         </button>
-                                        <button
-                                            onClick={() => {
-                                                setSelectedMembreId(membre.id);
-                                                document.getElementById('my_modal_1').showModal();
-                                            }}
-                                            className="btn btn-outline btn-error"
-                                        >
-                                            Supprimer
-                                        </button>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedMembreId(membre.id);
+                                                    document.getElementById('my_modal_1').showModal();
+                                                }}
+                                                className="btn btn-outline btn-error"
+                                            >
+                                                Supprimer
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className=""
+                                                disabled
+                                            >
+                                                Supprimer
+                                            </button>
                                     </div>
+                                        )}
                                 </td>
                             </tr>
                         ))}

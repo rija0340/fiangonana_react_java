@@ -102,7 +102,7 @@ public class MembreRestController {
                 membre.setFamille(famille.get());
             }
         }
-
+        membre.setSource("manuel");
         Membre savedMembre = membreRepository.save(membre);
         return ResponseEntity.ok(savedMembre);
     }

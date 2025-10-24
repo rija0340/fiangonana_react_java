@@ -20,7 +20,9 @@ public class Membre {
     private String situation_matrimoniale;
     private String occupation;
     private String observations;
+    @Column(name = "person_code", nullable = true)
     private String person_code;
+    private String source;
 
     // Relationship with Famille
     @ManyToOne(fetch = FetchType.LAZY)
@@ -34,7 +36,7 @@ public class Membre {
     // Constructor
     public Membre(String nom, String prenom, String date_naissance, String sexe, 
                  String date_bapteme, String categorie, String telephone, String situation_matrimoniale, 
-                 String occupation, String observations, String person_code) {
+                 String occupation, String observations, String person_code, String source) {
         this.nom = nom;
         this.prenom = prenom;
         this.date_naissance = date_naissance;
@@ -46,6 +48,7 @@ public class Membre {
         this.observations = observations;
         this.categorie = categorie;
         this.person_code = person_code;
+        this.source = source;
     }
 
     // Getters and Setters
@@ -73,6 +76,8 @@ public class Membre {
     public void setPerson_code(String person_code) { this.person_code = person_code; }
     public String getCategorie() { return categorie; }
     public void setCategorie(String categorie) { this.categorie = categorie; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
     // Famille relationship getters and setters
     public Famille getFamille() { return famille; }
     public void setFamille(Famille famille) { this.famille = famille; }
