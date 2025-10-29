@@ -30,9 +30,10 @@ public class MembreRestController {
         @RequestParam(required = false) String sexe,
         @RequestParam(required = false) String baptise,
         @RequestParam(required = false) String search,
-        @RequestParam(required = false) String categorie
+        @RequestParam(required = false) String categorie,
+        @RequestParam(required = false) String source
     ) {
-        System.out.println("Received sexe: " + sexe + " and baptise: " + baptise + " and search: " + search + " and categorie: " + categorie);
+        System.out.println("Received sexe: " + sexe + " and baptise: " + baptise + " and search: " + search + " and categorie: " + categorie + " and source: " + source);
         List<Membre> membres = membreRepository.findAll();
         
         if (sexe != null && !sexe.equalsIgnoreCase("all")) {
@@ -80,6 +81,57 @@ public class MembreRestController {
                             .toList();
                 }
             }
+            //syntax pour java 14 +
+            // if (source != null) {
+            //     membres = switch (categorie.toLowerCase()) {
+            //         case "acms" -> membres.stream()
+            //             .filter(m -> {
+            //                 String src = m.getSource();
+            //                 return src == null || src.trim().isEmpty() || src.equalsIgnoreCase(source);
+            //             })
+            //             .toList();
+                        
+            //         case "autre" -> membres.stream()
+            //             .filter(m -> source.equalsIgnoreCase(m.getSource()))
+            //             .toList();
+                        
+            //         case "all" -> membres; // No filtering needed for "all"
+                        
+            //         default -> membres.stream()
+            //             .filter(m -> source.equalsIgnoreCase(m.getSource()))
+            //             .toList();
+            //     };
+            // }
+
+            if (source != null) {
+                switch (source.toLowerCase()) {
+                    case "acms":
+                        membres = membres.stream()
+                            .filter(m -> {
+                                String src = m.getSource();
+                                return src == null || src.trim().isEmpty() || src.equalsIgnoreCase(source);
+                            })
+                            .toList();
+                        break;
+                        
+                    case "manuel":
+                        membres = membres.stream()
+                            .filter(m -> source.equalsIgnoreCase(m.getSource()))
+                            .toList();
+                        break;
+                        
+                    case "all":
+                        // No filtering needed for "all"
+                        break;
+                        
+                    default:
+                        membres = membres.stream()
+                            .filter(m -> source.equalsIgnoreCase(m.getSource()))
+                            .toList();
+                        break;
+                }
+            }
+
 
             return ResponseEntity.ok(membres);
     }

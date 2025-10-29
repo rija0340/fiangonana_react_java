@@ -3,17 +3,22 @@ import { Outlet } from "react-router-dom";
 import membreApi from "../features/membre/services/api";
 
 const Membre = () => {
-    const [membreCount, setMembreCount] = useState(0);
+    const [membreAcmsCount, setMembreAcmsCount] = useState(0);
+    const [membreAutreCount, setMembreAutreCount] = useState(0);
     
 
     useEffect(() => {
         const fetchMembreCount = async () => {
             try {
                 const membres = await membreApi.getAll();
-                setMembreCount(Array.isArray(membres) ? membres.length : 0);
+                var membresAcms = membres.filter(membre => membre.source === 'acms' || membre.source == null);
+                var membresAutre = membres.filter(membre => membre.source === 'manuel');
+                setMembreAcmsCount(Array.isArray(membresAcms) ? membresAcms.length : 0);
+                setMembreAutreCount(Array.isArray(membresAutre) ? membresAutre.length : 0);
             } catch (error) {
                 console.error("Error fetching membre count:", error);
-                setMembreCount(0);
+                setMembreAcmsCount(0);
+                setMembreAutreCount(0);
             }
         };
 
@@ -35,8 +40,8 @@ const Membre = () => {
                             </svg>
                         </div>
                         <div className="ml-4">
-                            <h2 className="text-gray-600 text-sm">Total Membres</h2>
-                            <p className="text-2xl font-semibold text-gray-800">{membreCount.toLocaleString()}</p>
+                            <h2 className="text-gray-600 text-sm">Total Membres ACMS</h2>
+                            <p className="text-2xl font-semibold text-gray-800">{membreAcmsCount.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>
@@ -50,8 +55,8 @@ const Membre = () => {
                             </svg>
                         </div>
                         <div className="ml-4">
-                            <h2 className="text-gray-600 text-sm">Revenue</h2>
-                            <p className="text-2xl font-semibold text-gray-800">$45,257</p>
+                            <h2 className="text-gray-600 text-sm">Total autre membre</h2>
+                           <p className="text-2xl font-semibold text-gray-800">{membreAutreCount.toLocaleString()}</p>
                         </div>
                     </div>
                 </div>

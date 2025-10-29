@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 
 const MembreList = () => {
     
@@ -12,6 +13,7 @@ const MembreList = () => {
         sexe: "all",
         baptise: "all",
         categorie: "all",
+        source: "all",
     });
     
     const navigate = useNavigate();
@@ -68,6 +70,35 @@ const MembreList = () => {
         navigate('/membres/import-xslx');
     };
 
+    const handleExportExcel = async () => {
+        try {
+            // Export members with current filters using backend endpoint
+            const response = await api.exportToExcel(filters);
+            
+            // Create a blob from the response data
+            const blob = new Blob([response.data], { 
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+            });
+            
+            // Create a download link and trigger the download
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const fileName = response.headers['content-disposition']
+                ? response.headers['content-disposition'].split('filename=')[1]
+                : 'membres_export.xlsx';
+                
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.setAttribute('download', fileName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            alert('Erreur lors de l\'export Excel: ' + error.message);
+        }
+    };
+
     return (
         <div className="overflow-x-auto m-6 card shadow-xl bg-base-100">
             <div className="card-body">
@@ -79,6 +110,9 @@ const MembreList = () => {
                         </button>
                         <button onClick={handleImportMembre} className="btn btn-secondary">
                             Importer des membres
+                        </button>
+                        <button onClick={handleExportExcel} className="btn btn-accent">
+                            Exporter Excel
                         </button>
                     </div>
                 </div>
@@ -99,26 +133,26 @@ const MembreList = () => {
                             />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {/* Sexe Filter */}
                             <div className="form-control">
-                            <label className="label">
-                                <span className="label-text font-semibold">Sexe</span>
-                            </label>
-                            <div className="flex gap-4">
-                                {["all", "homme", "femme"].map((value) => (
-                                <label key={value} className="label cursor-pointer">
-                                    <input
-                                    type="radio"
-                                    name="sexe"
-                                    className="radio radio-primary"
-                                    checked={filters.sexe === value}
-                                    onChange={() => handleFilterChange("sexe", value)}
-                                    />
-                                    <span className="label-text capitalize ml-2">{value}</span>
+                                <label className="label">
+                                    <span className="label-text font-semibold">Sexe</span>
                                 </label>
-                                ))}
-                            </div>
+                                <div className="flex gap-4">
+                                    {["all", "homme", "femme"].map((value) => (
+                                    <label key={value} className="label cursor-pointer">
+                                        <input
+                                        type="radio"
+                                        name="sexe"
+                                        className="radio radio-primary"
+                                        checked={filters.sexe === value}
+                                        onChange={() => handleFilterChange("sexe", value)}
+                                        />
+                                        <span className="label-text capitalize ml-2">{value}</span>
+                                    </label>
+                                    ))}
+                                </div>
                             </div>
 
                             {/* Baptisé(e) Filter */}
@@ -163,6 +197,27 @@ const MembreList = () => {
                                         <option key={index} value={category}>{category}</option>
                                     ))}
                                 </select>
+                            </div>
+
+                        {/* Categorie Filter */}
+                            <div className="form-control">
+                                <label className="label">
+                                    <span className="label-text font-semibold">Source</span>
+                                </label>
+                                <div className="flex gap-4">
+                                    {["all", "acms", "manuel"].map((value) => (
+                                    <label key={value} className="label cursor-pointer">
+                                        <input
+                                        type="radio"
+                                        name="source"
+                                        className="radio radio-primary"
+                                        checked={filters.source === value}
+                                        onChange={() => handleFilterChange("source", value)}
+                                        />
+                                        <span className="label-text capitalize ml-2">{value}</span>
+                                    </label>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                         </div>
@@ -224,32 +279,33 @@ const MembreList = () => {
                                 </td>
                                 <td className="text-center">{membre.categorie || '—'}</td>
                                 <td>
-                                    {membre.source === 'manuel' && (
-
-                                        <div className="flex justify-center">
-                                        <button
-                                            onClick={() => handleEditMembre(membre.id)}
-                                            className="btn btn-outline btn-success mr-1"
-                                            >
-                                            Modifier
-                                        </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedMembreId(membre.id);
-                                                    document.getElementById('my_modal_1').showModal();
-                                                }}
-                                                className="btn btn-outline btn-error"
-                                            >
-                                                Supprimer
-                                            </button>
+                                   {membre.source === 'manuel' ? (
+                                            <div className="flex justify-center">
+                                                <button
+                                                    onClick={() => handleEditMembre(membre.id)}
+                                                    className="btn btn-outline btn-success mr-1"
+                                                >
+                                                    Modifier
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedMembreId(membre.id);
+                                                        document.getElementById('my_modal_1').showModal();
+                                                    }}
+                                                    className="btn btn-outline btn-error"
+                                                >
+                                                    Supprimer
+                                                </button>
+                                            </div>
                                         ) : (
-                                            <button
-                                                className=""
-                                                disabled
-                                            >
-                                                Supprimer
-                                            </button>
-                                    </div>
+                                            <div className="flex justify-center">
+                                                <button
+                                                    className=""
+                                                    disabled
+                                                >
+                                                    Supprimer
+                                                </button>
+                                            </div>
                                         )}
                                 </td>
                             </tr>
