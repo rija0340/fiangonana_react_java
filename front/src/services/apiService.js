@@ -66,6 +66,15 @@ const createApiService = (resource) => {
       const response = await api.delete(`/${resource}/${id}`);
       return response.data;
     },
+    
+    /**
+     * Reset resource data (for planning reset)
+     * @returns {Promise<Object>}
+     */
+    reset: async () => {
+      const response = await api.delete(`/${resource}/reset`);
+      return response.data;
+    },
   };
 };
 

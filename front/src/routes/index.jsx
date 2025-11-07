@@ -10,6 +10,7 @@ import MembreXlsxImport from '../features/membre/components/XlsxImport';
 import Kilasy from '../pages/Kilasy';
 import KilasyList from '../features/kilasy/KilasyList';
 import KilasyCreate from '../features/kilasy/KilasyCreate';
+import Planning from '../features/planning/Planning';
 import KilasyEdit from '../features/kilasy/KilasyEdit';
 import KilasyDelete from '../features/kilasy/KilasyDelete';
 import Famille from '../pages/Famille';
@@ -93,6 +94,10 @@ export const router = createBrowserRouter([
                     element: <FamilleEdit />
                   },
                 ]
+              },
+              {
+                path: 'planning',
+                element: <Planning />,
               }
         ]
     }
