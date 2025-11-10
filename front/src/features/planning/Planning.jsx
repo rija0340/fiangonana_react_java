@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import './planningStyles.css';
 import PlanningConfiguration from './PlanningConfiguration';
 import PlanningDisplay from './PlanningDisplay';
@@ -11,6 +13,7 @@ const Planning = () => {
   const [nbSemaines, setNbSemaines] = useState(4);
   const [modeEquite, setModeEquite] = useState(true);
   const [modeDebug, setModeDebug] = useState(false);
+  const [selectedDates, setSelectedDates] = useState([]);
 
   const navigate = useNavigate();
 
@@ -50,22 +53,33 @@ const Planning = () => {
           id="configSection" 
           className={`p-6 ${configExpanded ? 'planning-config-expanded' : 'planning-config-collapsed'}`}
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Nombre de semaines</label>
-              <input 
-                type="number" 
-                value={nbSemaines} 
-                min="1" 
+              <input
+                type="number"
+                value={nbSemaines}
+                min="1"
                 max="52"
                 onChange={(e) => setNbSemaines(parseInt(e.target.value))}
                 className="w-full px-4 py-3 rounded-lg focus:outline-none"
               />
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Sélectionner les dates</label>
+              <DatePicker
+                selected={null}
+                onChange={(dates) => setSelectedDates(dates)}
+                selectsMultiple
+                dateFormat="dd/MM/yyyy"
+                placeholderText="Cliquez pour sélectionner plusieurs dates"
+                className="w-full px-4 py-3 rounded-lg focus:outline-none"
+              />
+            </div>
             <div className="flex items-center">
               <label className="flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={modeEquite}
                   onChange={(e) => setModeEquite(e.target.checked)}
                   className="mr-3"
@@ -75,8 +89,8 @@ const Planning = () => {
             </div>
             <div className="flex items-center">
               <label className="flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={modeDebug}
                   onChange={(e) => setModeDebug(e.target.checked)}
                   className="mr-3"
@@ -85,6 +99,18 @@ const Planning = () => {
               </label>
             </div>
           </div>
+          {selectedDates.length > 0 && (
+            <div className="mt-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Dates sélectionnées:</label>
+              <div className="flex flex-wrap gap-2">
+                {selectedDates.map((date, index) => (
+                  <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                    {date.toLocaleDateString('fr-FR')}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
