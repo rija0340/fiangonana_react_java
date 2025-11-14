@@ -13,4 +13,5 @@ public interface PlanningRepository extends JpaRepository<Planning, Long> {
     List<Planning> findByRoleId(Long roleId);
     List<Planning> findByMembreId(Long membreId);
     List<Planning> findByNumeroSemaineAndJourId(Integer numeroSemaine, Long jourId);
+    List<Planning> findBySessionId(Long sessionId);
 }

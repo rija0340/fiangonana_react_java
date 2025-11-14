@@ -32,13 +32,20 @@ public class Planning {
     @JsonBackReference
     private Membre membre;
 
+    // Référence à la session de planning
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id", nullable = false)
+    @JsonBackReference
+    private PlanningSession session;
+
     public Planning() {}
 
-    public Planning(Integer numeroSemaine, Jour jour, Role role, Membre membre) {
+    public Planning(Integer numeroSemaine, Jour jour, Role role, Membre membre, PlanningSession session) {
         this.numeroSemaine = numeroSemaine;
         this.jour = jour;
         this.role = role;
         this.membre = membre;
+        this.session = session;
     }
 
     public Long getId() {
@@ -79,5 +86,13 @@ public class Planning {
 
     public void setMembre(Membre membre) {
         this.membre = membre;
+    }
+
+    public PlanningSession getSession() {
+        return session;
+    }
+
+    public void setSession(PlanningSession session) {
+        this.session = session;
     }
 }
