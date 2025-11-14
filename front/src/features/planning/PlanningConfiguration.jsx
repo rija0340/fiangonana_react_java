@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import DatePicker from 'react-datepicker';
+import "react-datepicker/dist/react-datepicker.css";
 import dayApi from './../../api/jour';  // Updated API service for days
 import roleApi from './../../api/role';  // Updated API service for roles
 import membreApi from './../../features/membre/services/api';  // Existing member API
@@ -21,42 +23,13 @@ const PlanningConfiguration = ({
   const [message, setMessage] = useState('');
   const [selectedDayType, setSelectedDayType] = useState('');
   const [nomNouveauRole, setNomNouveauRole] = useState('');
+  const [datesTemp, setDatesTemp] = useState([]); // Temporary state for the date picker
 
-  const datePickerRef = useRef(null);
-  const flatpickrInstance = useRef(null);
-
-  // Initialize date picker
+  // Update datesTemp when selectedDates changes
   useEffect(() => {
-    if (window.flatpickr && datePickerRef.current) {
-      if (flatpickrInstance.current) {
-        flatpickrInstance.current.destroy();
-      }
-
-      flatpickrInstance.current = window.flatpickr(datePickerRef.current, {
-        mode: "multiple",
-        dateFormat: "Y-m-d",
-        onChange: (selectedDates) => {
-          // Use setSelectedDates to avoid duplicates
-          const dateStrings = selectedDates.map(date => date.toISOString().split('T')[0]);
-          setSelectedDates(dateStrings);
-        }
-      });
-
-      // Set selected dates if any
-      if (selectedDates.length > 0) {
-        const dates = selectedDates.map(d => new Date(d));
-        if (flatpickrInstance.current) {
-          flatpickrInstance.current.setDate(dates);
-        }
-      }
-    }
-
-    return () => {
-      if (flatpickrInstance.current) {
-        flatpickrInstance.current.destroy();
-      }
-    };
-  }, [selectedDates.length, setSelectedDates]); // Re-initialize when number of dates changes
+    const dateObjects = selectedDates.map(dateStr => new Date(dateStr));
+    setDatesTemp(dateObjects);
+  }, [selectedDates]);
 
   // Load initial data
   useEffect(() => {
@@ -353,12 +326,25 @@ const PlanningConfiguration = ({
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Sélectionner les dates
             </label>
-            <input
-              type="text"
-              ref={datePickerRef}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300"
-              placeholder="Cliquez pour sélectionner plusieurs dates"
-            />
+            <div className="border-2 border-gray-300 rounded-lg">
+              <DatePicker
+                selected={null}
+                onChange={(date) => {
+                  // Convert the date to string format
+                  const dateString = date.toISOString().split('T')[0];
+                  // Check if the date is already selected
+                  if (selectedDates.includes(dateString)) {
+                    // Remove the date from the array
+                    setSelectedDates(selectedDates.filter(d => d !== dateString));
+                  } else {
+                    // Add the date to the array if it's not already there
+                    setSelectedDates([...selectedDates, dateString]);
+                  }
+                }}
+                inline
+                highlightDates={selectedDates.map(date => new Date(date))}
+              />
+            </div>
             <div className="text-sm text-gray-600 mt-1">
               {selectedDates.length} date(s) sélectionnée(s)
             </div>
