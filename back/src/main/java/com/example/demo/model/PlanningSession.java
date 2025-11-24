@@ -26,7 +26,20 @@ public class PlanningSession {
     @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Planning> plannings;
 
-    public PlanningSession() {}
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "planning_session_dates", joinColumns = @JoinColumn(name = "session_id"))
+    @Column(name = "date")
+    private List<String> selectedDates;
+
+    @Column(columnDefinition = "TEXT")
+    private String customRoles; // JSON string
+
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "planning_session_membres", joinColumns = @JoinColumn(name = "session_id"), inverseJoinColumns = @JoinColumn(name = "membre_id"))
+    private List<Membre> selectedPeople;
+
+    public PlanningSession() {
+    }
 
     public PlanningSession(String nom) {
         this.nom = nom;
@@ -70,5 +83,29 @@ public class PlanningSession {
 
     public void setPlannings(List<Planning> plannings) {
         this.plannings = plannings;
+    }
+
+    public List<String> getSelectedDates() {
+        return selectedDates;
+    }
+
+    public void setSelectedDates(List<String> selectedDates) {
+        this.selectedDates = selectedDates;
+    }
+
+    public String getCustomRoles() {
+        return customRoles;
+    }
+
+    public void setCustomRoles(String customRoles) {
+        this.customRoles = customRoles;
+    }
+
+    public List<Membre> getSelectedPeople() {
+        return selectedPeople;
+    }
+
+    public void setSelectedPeople(List<Membre> selectedPeople) {
+        this.selectedPeople = selectedPeople;
     }
 }

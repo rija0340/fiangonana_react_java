@@ -10,27 +10,39 @@ public class Planning {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // Date spécifique (YYYY-MM-DD)
+    @Column(name = "date")
+    private String date;
+
+    // Nom du rôle (pour les rôles personnalisés ou globaux)
+    @Column(name = "role_name")
+    private String roleName;
+
     // Numéro de la semaine
-    @Column(name = "numero_semaine", nullable = false)
+    @Column(name = "numero_semaine", nullable = true)
     private Integer numeroSemaine;
 
     // Référence au jour
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "jour_id", nullable = false)
+    @JoinColumn(name = "jour_id", nullable = true)
     @JsonBackReference
     private Jour jour;
 
     // Référence au rôle
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id", nullable = false)
+    @JoinColumn(name = "role_id", nullable = true)
     @JsonBackReference
     private Role role;
 
     // Référence au membre affecté
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "membre_id", nullable = false)
+    @JoinColumn(name = "membre_id", nullable = true)
     @JsonBackReference
     private Membre membre;
+
+    // Nom du membre (si pas dans la base)
+    @Column(name = "membre_nom")
+    private String membreNom;
 
     // Référence à la session de planning
     @ManyToOne(fetch = FetchType.LAZY)
@@ -38,7 +50,8 @@ public class Planning {
     @JsonBackReference
     private PlanningSession session;
 
-    public Planning() {}
+    public Planning() {
+    }
 
     public Planning(Integer numeroSemaine, Jour jour, Role role, Membre membre, PlanningSession session) {
         this.numeroSemaine = numeroSemaine;
@@ -94,5 +107,29 @@ public class Planning {
 
     public void setSession(PlanningSession session) {
         this.session = session;
+    }
+
+    public String getDate() {
+        return date;
+    }
+
+    public void setDate(String date) {
+        this.date = date;
+    }
+
+    public String getRoleName() {
+        return roleName;
+    }
+
+    public void setRoleName(String roleName) {
+        this.roleName = roleName;
+    }
+
+    public String getMembreNom() {
+        return membreNom;
+    }
+
+    public void setMembreNom(String membreNom) {
+        this.membreNom = membreNom;
     }
 }

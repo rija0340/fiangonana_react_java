@@ -17,6 +17,7 @@ import Famille from '../pages/Famille';
 import FamilleList from '../features/famille/components/List';
 import FamilleCreate from '../features/famille/components/Create';
 import FamilleEdit from '../features/famille/components/Edit';
+import Planning2Page from '../pages/Planning2';
 
 
 export const router = createBrowserRouter([
@@ -98,6 +99,10 @@ export const router = createBrowserRouter([
               {
                 path: 'planning',
                 element: <Planning />,
+              },
+              {
+                path: 'planning2',
+                element: <Planning2Page />,
               }
         ]
     }

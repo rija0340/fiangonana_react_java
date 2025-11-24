@@ -12,15 +12,15 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/planning")
-@CrossOrigin(origins = "http://localhost:5173")  // Vite default port
+@CrossOrigin(origins = "http://localhost:5173") // Vite default port
 public class PlanningRestController {
 
     @Autowired
     private PlanningRepository planningRepository;
-    
+
     @Autowired
     private PlanningSessionRepository planningSessionRepository;
-    
+
     @Autowired
     private AvailabilityRepository availabilityRepository;
 
@@ -42,12 +42,16 @@ public class PlanningRestController {
     }
 
     @PutMapping("/sessions/{id}")
-    public ResponseEntity<PlanningSession> updatePlanningSession(@PathVariable Long id, @RequestBody PlanningSession sessionDetails) {
+    public ResponseEntity<PlanningSession> updatePlanningSession(@PathVariable Long id,
+            @RequestBody PlanningSession sessionDetails) {
         Optional<PlanningSession> optionalSession = planningSessionRepository.findById(id);
         if (optionalSession.isPresent()) {
             PlanningSession session = optionalSession.get();
             session.setNom(sessionDetails.getNom());
             session.setDescription(sessionDetails.getDescription());
+            session.setSelectedDates(sessionDetails.getSelectedDates());
+            session.setCustomRoles(sessionDetails.getCustomRoles());
+            session.setSelectedPeople(sessionDetails.getSelectedPeople());
             return ResponseEntity.ok(planningSessionRepository.save(session));
         } else {
             return ResponseEntity.notFound().build();
@@ -73,7 +77,8 @@ public class PlanningRestController {
     }
 
     @GetMapping("/sessions/{sessionId}/availability/membre/{membreId}")
-    public List<Availability> getAvailabilityForSessionAndMembre(@PathVariable Long sessionId, @PathVariable Long membreId) {
+    public List<Availability> getAvailabilityForSessionAndMembre(@PathVariable Long sessionId,
+            @PathVariable Long membreId) {
         return availabilityRepository.findByPlanningSessionIdAndMembreId(sessionId, membreId);
     }
 
@@ -84,18 +89,19 @@ public class PlanningRestController {
         if (!session.isPresent()) {
             throw new RuntimeException("Planning session not found");
         }
-        
+
         // Set the session reference
         availability.setPlanningSession(session.get());
-        
+
         return availabilityRepository.save(availability);
     }
 
     @PutMapping("/sessions/{sessionId}/availability/{id}")
-    public ResponseEntity<Availability> updateAvailability(@PathVariable Long sessionId, @PathVariable Long id, @RequestBody Availability availabilityDetails) {
+    public ResponseEntity<Availability> updateAvailability(@PathVariable Long sessionId, @PathVariable Long id,
+            @RequestBody Availability availabilityDetails) {
         Optional<Availability> optionalAvailability = availabilityRepository.findById(id);
-        if (optionalAvailability.isPresent() && 
-            optionalAvailability.get().getPlanningSession().getId().equals(sessionId)) {
+        if (optionalAvailability.isPresent() &&
+                optionalAvailability.get().getPlanningSession().getId().equals(sessionId)) {
             Availability availability = optionalAvailability.get();
             availability.setMembre(availabilityDetails.getMembre());
             availability.setDate(availabilityDetails.getDate());
@@ -109,8 +115,8 @@ public class PlanningRestController {
     @DeleteMapping("/sessions/{sessionId}/availability/{id}")
     public ResponseEntity<Void> deleteAvailability(@PathVariable Long sessionId, @PathVariable Long id) {
         Optional<Availability> availability = availabilityRepository.findById(id);
-        if (availability.isPresent() && 
-            availability.get().getPlanningSession().getId().equals(sessionId)) {
+        if (availability.isPresent() &&
+                availability.get().getPlanningSession().getId().equals(sessionId)) {
             availabilityRepository.deleteById(id);
             return ResponseEntity.ok().build();
         } else {
@@ -129,7 +135,7 @@ public class PlanningRestController {
         Optional<Planning> planning = planningRepository.findById(id);
         return planning.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
     }
-    
+
     @GetMapping("/session/{sessionId}")
     public List<Planning> getPlanningBySession(@PathVariable Long sessionId) {
         // This requires updating the repository interface
@@ -176,6 +182,9 @@ public class PlanningRestController {
             planning.setRole(planningDetails.getRole());
             planning.setMembre(planningDetails.getMembre());
             planning.setSession(planningDetails.getSession());
+            planning.setDate(planningDetails.getDate());
+            planning.setRoleName(planningDetails.getRoleName());
+            planning.setMembreNom(planningDetails.getMembreNom());
             return ResponseEntity.ok(planningRepository.save(planning));
         } else {
             return ResponseEntity.notFound().build();
