@@ -14,7 +14,7 @@ const formatDateShort = (dStr) => {
 const PlanningConfigTab = () => {
   const {
     store,
-    currentPlan,
+    currentPlan, // Now comes from context
     activeTab,
     planRoleDayType,
     setPlanRoleDayType,
@@ -26,7 +26,8 @@ const PlanningConfigTab = () => {
     updatePlanTitle,
     selectAllPeopleForPlan,
     togglePlanPerson,
-    toggleDispo
+    toggleDispo,
+    setStore
   } = usePlanning();
 
   const datePickerRef = useRef(null);
@@ -63,15 +64,28 @@ const PlanningConfigTab = () => {
             return `${y}-${m}-${d}`;
           }).sort();
 
-          // Update the current plan with new dates
+          // Update the current plan with new dates in the store
           if (currentPlan) {
-            const updatedPlan = { ...currentPlan, selectedDates: newDates };
+            setStore(prev => ({
+              ...prev,
+              plans: prev.plans.map(p =>
+                p.id === currentPlan.id
+                  ? { ...p, selectedDates: newDates }
+                  : p
+              )
+            }));
+
+            // Also save to backend
             import('axios').then(axios => {
               axios.default.put(`http://localhost:8082/api/planning/sessions/${currentPlan.id}`, {
                 ...currentPlan,
                 selectedDates: newDates,
                 customRoles: typeof currentPlan.customRoles === 'string' ? currentPlan.customRoles : JSON.stringify(currentPlan.customRoles),
                 selectedPeople: currentPlan.selectedPeople || []
+              }, {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
               }).catch(e => console.error("Auto-save failed", e));
             });
           }
@@ -79,7 +93,7 @@ const PlanningConfigTab = () => {
       });
       return () => fp.destroy();
     }
-  }, [currentPlan]);
+  }, [currentPlan, setStore]);
 
   if (!currentPlan) {
     return (
@@ -128,14 +142,10 @@ const PlanningConfigTab = () => {
                 <thead>
                   <tr className="bg-slate-100 text-slate-600 text-xs">
                     <th className="p-2 w-10 text-center">
-                      <input
-                        type="checkbox"
-                        onChange={(e) => selectAllPeopleForPlan(e.target.checked)}
-                        checked={currentPlan.selectedPeople.length === store.global.people.length}
-                      />
+                      <i className="fa-solid fa-user-check"></i>
                     </th>
-                    <th className="p-2 text-left font-semibold">Membre</th>
-                    {currentPlan.selectedDates.map(d => {
+                    <th className="p-2 text-left font-semibold">Membre Sélectionné</th>
+                    {(currentPlan.selectedDates || []).map(d => {
                       const date = parseYMD(d);
                       return (
                         <th key={d} className="p-2 text-center min-w-[60px] font-medium">
@@ -147,41 +157,39 @@ const PlanningConfigTab = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {store.global.people
+                  {(store.global.people || [])
+                    .filter(person => {
+                      // Only show people selected in Global Tab
+                      const personId = person.id || person.person_code;
+                      return (currentPlan.selectedPeople || []).includes(personId);
+                    })
                     .map(person => {
-                      const isIncluded = currentPlan.selectedPeople.includes(person.id || person.person_code);
+                      const personId = person.id || person.person_code;
                       return (
                         <tr
-                          key={person.id || person.person_code}
-                          className={`${isIncluded ? 'bg-white' : 'bg-slate-50 opacity-50'} hover:bg-indigo-50/50 hover:opacity-100`}
+                          key={personId}
+                          className="bg-white hover:bg-indigo-50/50"
                         >
                           <td className="p-2 text-center">
-                            <input
-                              type="checkbox"
-                              className="w-4 h-4 text-primary rounded focus:ring-primary"
-                              checked={isIncluded}
-                              onChange={() => togglePlanPerson(person.id || person.person_code)}
-                            />
+                            <i className="fa-solid fa-check text-emerald-500"></i>
                           </td>
-                          <td className="p-2 font-medium text-slate-700">{person.nom || person.person_code}</td>
-                          {currentPlan.selectedDates.map(date => {
-                            const key = `${person.id || person.person_code}_${date}`;
+                          <td className="p-2 font-medium text-slate-700">{person.prenom || person.nom || person.person_code}</td>
+                          {(currentPlan.selectedDates || []).map(date => {
+                            const key = `${personId}_${date}`;
                             const isUnavailable = currentPlan.availability?.[key] === false;
                             return (
                               <td key={date} className="p-2 text-center">
-                                {isIncluded && (
-                                  <label className="checkbox-wrapper cursor-pointer inline-block w-5 h-5">
-                                    <input
-                                      type="checkbox"
-                                      className="hidden"
-                                      checked={!isUnavailable}
-                                      onChange={(e) => toggleDispo(person.id || person.person_code, date, e.target.checked)}
-                                    />
-                                    <div className={`w-full h-full rounded-full flex items-center justify-center text-white text-[10px] ${!isUnavailable ? 'bg-emerald-400' : 'bg-slate-300'}`}>
-                                      {!isUnavailable && <i className="fa-solid fa-check"></i>}
-                                    </div>
-                                  </label>
-                                )}
+                                <label className="checkbox-wrapper cursor-pointer inline-block w-5 h-5">
+                                  <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={!isUnavailable}
+                                    onChange={(e) => toggleDispo(personId, date, e.target.checked)}
+                                  />
+                                  <div className={`w-full h-full rounded-full flex items-center justify-center text-white text-[10px] ${!isUnavailable ? 'bg-emerald-400' : 'bg-slate-300'}`}>
+                                    {!isUnavailable && <i className="fa-solid fa-check"></i>}
+                                  </div>
+                                </label>
                               </td>
                             );
                           })}
@@ -200,7 +208,7 @@ const PlanningConfigTab = () => {
           </h3>
 
           {(() => {
-            const availableDayTypes = Array.from(new Set(currentPlan.selectedDates.map(d => parseYMD(d).getDay()))).sort((a, b) => a - b);
+            const availableDayTypes = Array.from(new Set((currentPlan.selectedDates || []).map(d => parseYMD(d).getDay()))).sort((a, b) => a - b);
 
             if (availableDayTypes.length === 0) {
               return <p className="text-sm text-slate-400 italic">Sélectionnez des dates pour configurer les rôles.</p>;

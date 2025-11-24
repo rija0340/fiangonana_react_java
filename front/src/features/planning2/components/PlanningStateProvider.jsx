@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import planningService from '../services/planningService';
+import membreApi from '../../membre/services/api';
+import axios from 'axios';
 
 const PlanningContext = createContext();
 
@@ -15,13 +17,13 @@ export const PlanningStateProvider = ({ children }) => {
   const [store, setStore] = useState({
     plans: [],
     sessions: [],
-    currentPlan: null,
     currentPlanId: null,
     global: {
       days: [],
       roles: [],
       people: [],
-      rolesConfig: {}
+      rolesConfig: {},
+      dayMapping: {} // Maps ordreAffichage (0-6) to jour ID
     },
     currentSession: null,
     loading: false,
@@ -35,6 +37,69 @@ export const PlanningStateProvider = ({ children }) => {
   const [highlight, setHighlight] = useState({ person: null, role: null });
   const [newRoleName, setNewRoleName] = useState('');
   const [roleDayType, setRoleDayType] = useState('0'); // Default to Sunday
+
+  // Compute currentPlan from store
+  const currentPlan = useMemo(() => {
+    return store.plans.find(p => p.id === store.currentPlanId) || null;
+  }, [store.plans, store.currentPlanId]);
+
+  // Load global data (roles and people) on mount
+  useEffect(() => {
+    loadGlobalData();
+  }, []);
+
+  const loadGlobalData = useCallback(async () => {
+    try {
+      setStore(prev => ({ ...prev, loading: true, error: null }));
+
+      // Load roles from backend
+      const rolesResponse = await axios.get('http://localhost:8082/api/roles');
+      const roles = rolesResponse.data;
+
+      // Load days (jours) from backend
+      const joursResponse = await axios.get('http://localhost:8082/api/jours');
+      const jours = joursResponse.data;
+
+      // Load people from backend
+      const people = await membreApi.getAll();
+
+      // Create a mapping from ordreAffichage (0-6) to jour ID
+      // This allows us to use JavaScript day of week (0=Sunday, 6=Saturday) to find the corresponding jour ID
+      const dayMapping = {};
+      jours.forEach(jour => {
+        if (jour.ordreAffichage !== null && jour.ordreAffichage !== undefined) {
+          dayMapping[jour.ordreAffichage.toString()] = jour.id;
+        }
+      });
+
+      // Organize roles by day type (using ordreAffichage as key for compatibility with HTML version)
+      const rolesConfig = {};
+      roles.forEach(role => {
+        if (role.jour && role.jour.ordreAffichage !== null && role.jour.ordreAffichage !== undefined) {
+          const dayKey = role.jour.ordreAffichage.toString();
+          if (!rolesConfig[dayKey]) {
+            rolesConfig[dayKey] = [];
+          }
+          rolesConfig[dayKey].push(role.nom);
+        }
+      });
+
+      setStore(prev => ({
+        ...prev,
+        global: {
+          days: jours,
+          roles: roles,
+          people: people,
+          rolesConfig: rolesConfig,
+          dayMapping: dayMapping // Add mapping for easy lookup
+        },
+        loading: false
+      }));
+    } catch (error) {
+      console.error('Error loading global data:', error);
+      setStore(prev => ({ ...prev, error: error.message, loading: false }));
+    }
+  }, []);
 
   const loadPlans = useCallback(async () => {
     try {
@@ -387,6 +452,7 @@ export const PlanningStateProvider = ({ children }) => {
   const value = {
     store,
     setStore,
+    currentPlan, // Add currentPlan to context
     activeTab,
     setActiveTab,
     toast,
@@ -395,6 +461,7 @@ export const PlanningStateProvider = ({ children }) => {
     loadPlans,
     loadSessions,
     loadPlansBySession,
+    loadGlobalData, // Add loadGlobalData to context
     setCurrentPlan,
     setCurrentPlanId,
     setCurrentSession,

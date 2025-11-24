@@ -8,6 +8,7 @@ const PlanningGlobalTab = () => {
   const {
     store,
     setStore,
+    currentPlan,
     newRoleName,
     setNewRoleName,
     roleDayType,
@@ -58,23 +59,86 @@ const PlanningGlobalTab = () => {
   const togglePersonSelection = (personId) => {
     setSelectedPeople(prev => {
       const isSelected = prev.includes(personId);
-      const newSelected = isSelected 
+      const newSelected = isSelected
         ? prev.filter(id => id !== personId)
         : [...prev, personId];
-      
+
       // Update the store global people with selected members
       const selectedMembres = membres.filter(m => newSelected.includes(m.id));
-      
+
       // Update the store in the context
-      setStore(prevStore => ({
+      setStore(prevStore => {
+        // Update currentPlan.selectedPeople if a plan is selected
+        const updatedPlans = currentPlan
+          ? prevStore.plans.map(p =>
+              p.id === currentPlan.id
+                ? { ...p, selectedPeople: newSelected }
+                : p
+            )
+          : prevStore.plans;
+
+        return {
+          ...prevStore,
+          global: {
+            ...prevStore.global,
+            people: selectedMembres
+          },
+          plans: updatedPlans
+        };
+      });
+
+      return newSelected;
+    });
+  };
+
+  const selectAllMembers = () => {
+    const allMemberIds = membres.map(m => m.id);
+    setSelectedPeople(allMemberIds);
+
+    // Update the store in the context
+    setStore(prevStore => {
+      // Update currentPlan.selectedPeople if a plan is selected
+      const updatedPlans = currentPlan
+        ? prevStore.plans.map(p =>
+            p.id === currentPlan.id
+              ? { ...p, selectedPeople: allMemberIds }
+              : p
+          )
+        : prevStore.plans;
+
+      return {
         ...prevStore,
         global: {
           ...prevStore.global,
-          people: selectedMembres
-        }
-      }));
-      
-      return newSelected;
+          people: membres
+        },
+        plans: updatedPlans
+      };
+    });
+  };
+
+  const deselectAllMembers = () => {
+    setSelectedPeople([]);
+
+    // Update the store in the context
+    setStore(prevStore => {
+      // Update currentPlan.selectedPeople if a plan is selected
+      const updatedPlans = currentPlan
+        ? prevStore.plans.map(p =>
+            p.id === currentPlan.id
+              ? { ...p, selectedPeople: [] }
+              : p
+          )
+        : prevStore.plans;
+
+      return {
+        ...prevStore,
+        global: {
+          ...prevStore.global,
+          people: []
+        },
+        plans: updatedPlans
+      };
     });
   };
 
@@ -90,6 +154,10 @@ const PlanningGlobalTab = () => {
           axios.default.post('http://localhost:8082/api/roles', {
             nom: name,
             jour: { id: parseInt(roleDayType) }
+          }, {
+            headers: {
+              'Content-Type': 'application/json'
+            }
           })
         );
       } catch (e) {
@@ -276,12 +344,43 @@ const PlanningGlobalTab = () => {
           </div>
         </div>
 
+        {/* Selection Actions */}
+        <div className="mb-3 flex gap-2 justify-end">
+          <button
+            onClick={selectAllMembers}
+            className="btn btn-sm btn-outline btn-primary"
+          >
+            <i className="fa-solid fa-check-double mr-1"></i>
+            Tout sélectionner
+          </button>
+          <button
+            onClick={deselectAllMembers}
+            className="btn btn-sm btn-outline btn-error"
+          >
+            <i className="fa-solid fa-times mr-1"></i>
+            Tout désélectionner
+          </button>
+        </div>
+
         {/* Membre List with selection */}
         <div className="overflow-y-auto max-h-96">
           <table className="w-full">
             <thead className="sticky top-0 bg-slate-100 z-10">
               <tr>
-                <th className="p-2 w-10 text-center"></th>
+                <th className="p-2 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary"
+                    checked={selectedPeople.length === membres.length && membres.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        selectAllMembers();
+                      } else {
+                        deselectAllMembers();
+                      }
+                    }}
+                  />
+                </th>
                 <th className="p-2 text-left font-semibold">Nom</th>
                 <th className="p-2 text-left font-semibold">Prénom</th>
                 <th className="p-2 text-left font-semibold">Sexe</th>

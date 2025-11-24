@@ -7,13 +7,12 @@ const DAY_NAMES = { 0: 'Dimanche', 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Je
 const PlanningScheduleTab = () => {
   const {
     store,
+    currentPlan,
     highlight,
     setHighlight,
-    setToast
+    setToast,
+    setStore
   } = usePlanning();
-
-  // Get the current plan from the store
-  const currentPlan = store.plans.find(p => p.id === store.currentPlanId);
 
 
 
@@ -62,6 +61,17 @@ const PlanningScheduleTab = () => {
     return defs;
   };
 
+  // Helper function to get person name from ID
+  // Priority: prenom > nom > person_code > personId
+  const getPersonName = (personId) => {
+    if (!personId) return null;
+    const person = store.global.people.find(p => (p.id || p.person_code) === personId);
+    if (!person) return personId;
+
+    // Return prenom if available, otherwise nom, otherwise person_code, otherwise personId
+    return person.prenom || person.nom || person.person_code || personId;
+  };
+
   // Generate schedule function
   const generateSchedule = async () => {
     if (!currentPlan || currentPlan.selectedDates.length === 0) {
@@ -102,16 +112,26 @@ const PlanningScheduleTab = () => {
               date: date,
               roleName: role,
               membreNom: chosen
+            }, {
+              headers: {
+                'Content-Type': 'application/json'
+              }
             }).catch(e => console.error(e))
           );
         }
       });
     });
 
-    // Update the current plan with new assignments
+    // Update the current plan with new assignments in the store
     if (currentPlan) {
-      const updatedPlan = { ...currentPlan, assignments: newAssignments };
-      // updatePlan would be called here if available
+      setStore(prev => ({
+        ...prev,
+        plans: prev.plans.map(p =>
+          p.id === currentPlan.id
+            ? { ...p, assignments: newAssignments }
+            : p
+        )
+      }));
     }
 
     setToast({ msg: "Génération terminée", type: "info" });
@@ -129,7 +149,8 @@ const PlanningScheduleTab = () => {
       const row = [DAY_NAMES[def.dayType], def.role];
       weeks.forEach(week => {
         const date = week.dates.find(d => parseYMD(d).getDay() === def.dayType);
-        row.push(date ? (currentPlan.assignments?.[`${date}_${def.role}`] || "") : "");
+        const assignedId = date ? currentPlan.assignments?.[`${date}_${def.role}`] : null;
+        row.push(assignedId ? (getPersonName(assignedId) || "") : "");
       });
       return row;
     })];
@@ -173,10 +194,21 @@ const PlanningScheduleTab = () => {
                   <td className="p-3 font-medium text-slate-700">{def.role}</td>
                   {getWeeksStruct(currentPlan.selectedDates).map((w, i) => {
                     const date = w.dates.find(d => parseYMD(d).getDay() === def.dayType);
-                    const assigned = date ? currentPlan.assignments?.[`${date}_${def.role}`] : null;
+                    const assignedId = date ? currentPlan.assignments?.[`${date}_${def.role}`] : null;
+                    const assignedName = getPersonName(assignedId);
+
+                    // Check if this cell should be highlighted
+                    const isHighlighted = highlight && (
+                      (highlight.person === assignedId && (!highlight.role || highlight.role === def.role)) ||
+                      (highlight.role === def.role && !highlight.person)
+                    );
+
                     return (
-                      <td key={i} className="p-3 text-center border-l border-slate-100">
-                        {assigned ? <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-semibold">{assigned}</span> : <span className="text-slate-300">-</span>}
+                      <td
+                        key={i}
+                        className={`p-3 text-center border-l border-slate-100 transition ${isHighlighted ? 'bg-yellow-100' : ''}`}
+                      >
+                        {assignedName ? <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-semibold">{assignedName}</span> : <span className="text-slate-300">-</span>}
                       </td>
                     );
                   })}
@@ -189,12 +221,97 @@ const PlanningScheduleTab = () => {
     );
   };
 
-  // Render stats
-  const renderStats = () => {
+  // Render Matrix Assistant (Realtime)
+  const renderMatrixAssistant = () => {
+    if (!currentPlan || currentPlan.selectedDates.length === 0) {
+      return null;
+    }
+
+    const assignments = currentPlan.assignments || {};
+    const roleDefs = getPlanRoles(currentPlan, currentPlan.selectedDates);
+
+    // Build stats: { personId: { roleName: count, total: count } }
+    const peopleStats = {};
+    (currentPlan.selectedPeople || []).forEach(p => {
+      peopleStats[p] = { total: 0 };
+    });
+
+    Object.entries(assignments).forEach(([key, personId]) => {
+      if (!personId) return;
+      const roleName = key.split('_')[1];
+      if (!peopleStats[personId]) peopleStats[personId] = { total: 0 };
+      if (!peopleStats[personId][roleName]) peopleStats[personId][roleName] = 0;
+      peopleStats[personId][roleName]++;
+      peopleStats[personId].total++;
+    });
+
+    const sortedPeople = [...(currentPlan.selectedPeople || [])].sort((a, b) => {
+      const nameA = getPersonName(a) || '';
+      const nameB = getPersonName(b) || '';
+      return nameA.localeCompare(nameB);
+    });
+
     return (
-      <div className="max-w-5xl mx-auto bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-        <h2 className="text-xl font-bold mb-4">Statistiques du Planning</h2>
-        <div className="h-80"><canvas ref={chartRef}></canvas></div>
+      <div className="mt-4 mb-4 mr-4 ml-4 bg-white border-t border-slate-200 flex flex-col shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <div className="p-2 bg-slate-50 border-b border-slate-200 flex justify-between items-center px-4">
+          <h3 className="font-bold text-slate-700 text-xs uppercase flex items-center gap-2">
+            <i className="fa-solid fa-robot text-secondary"></i> Assistant Matriciel (Temps Réel)
+          </h3>
+          <span className="text-[10px] text-slate-400">Cliquez sur un nom ou un chiffre pour surligner</span>
+        </div>
+        <div className="overflow-x-auto custom-scroll p-4">
+          <table className="w-full text-xs text-center border-collapse">
+            <thead className="bg-white sticky top-0 z-10 shadow-sm">
+              <tr className="text-slate-500 font-medium">
+                <th className="p-1 px-2 bg-slate-50 text-left sticky left-0 z-20 border-r border-b w-28 text-xs">Membre</th>
+                {roleDefs.map((def, idx) => {
+                  const dayShort = DAY_NAMES[def.dayType].substring(0, 3);
+                  const headerText = `${dayShort} - ${def.role}`;
+                  return (
+                    <th
+                      key={idx}
+                      className="p-1 min-w-[110px] bg-slate-50 border-b font-medium text-[10px] uppercase whitespace-nowrap"
+                      title={`${DAY_NAMES[def.dayType]} - ${def.role}`}
+                    >
+                      {headerText}
+                    </th>
+                  );
+                })}
+                <th className="p-1 px-2 bg-slate-100 border-b w-14 font-bold text-slate-700 text-xs">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {sortedPeople.map(personId => {
+                const stats = peopleStats[personId] || { total: 0 };
+                const personName = getPersonName(personId);
+                return (
+                  <tr key={personId}>
+                    <td
+                      className="p-1 px-2 text-left font-medium text-slate-700 border-r border-b bg-white sticky left-0 cursor-pointer hover:text-primary text-xs whitespace-nowrap"
+                      onClick={() => setHighlight({ person: personId, role: null })}
+                    >
+                      {personName}
+                    </td>
+                    {roleDefs.map((def, idx) => {
+                      const count = stats[def.role] || 0;
+                      const cls = count > 0 ? 'font-bold text-blue-600' : 'text-slate-300';
+                      return (
+                        <td
+                          key={idx}
+                          className={`border-b border-slate-100 p-0 h-8 cursor-pointer hover:bg-yellow-50 transition ${cls}`}
+                          onClick={() => setHighlight({ person: personId, role: def.role })}
+                        >
+                          {count || '-'}
+                        </td>
+                      );
+                    })}
+                    <td className="font-bold text-slate-800 bg-slate-50 border-b">{stats.total}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -230,6 +347,7 @@ const PlanningScheduleTab = () => {
         <div className="flex-1 overflow-auto p-4 bg-slate-50 custom-scroll relative">
           {renderScheduleTable()}
         </div>
+        {renderMatrixAssistant()}
       </div>
     </>
   );

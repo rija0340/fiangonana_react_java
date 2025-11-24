@@ -8,6 +8,7 @@ import { PlanningStateProvider, usePlanning } from './components/PlanningStatePr
 const Planning2Content = () => {
     const {
         store,
+        currentPlan, // Now comes from context
         activeTab,
         setActiveTab,
         toast,
@@ -18,8 +19,6 @@ const Planning2Content = () => {
         addPlan,
         loadPlans
     } = usePlanning();
-
-    const currentPlan = store.plans.find(p => p.id === store.currentPlanId);
 
     // Load plans on component mount
     useEffect(() => {
@@ -79,6 +78,10 @@ const Planning2Content = () => {
                                             selectedDates: defaultDates,
                                             customRoles: JSON.stringify({}),
                                             selectedPeople: store.global.people.map(m => m.id) // Use the global selected people
+                                        }, {
+                                            headers: {
+                                                'Content-Type': 'application/json'
+                                            }
                                         })
                                             .then(res => {
                                                 const createdPlan = res.data;
