@@ -7,8 +7,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/planning")
@@ -24,26 +26,35 @@ public class PlanningRestController {
     @Autowired
     private AvailabilityRepository availabilityRepository;
 
+    @Autowired
+    private PlanningSessionService planningSessionService;
+
     // Planning Session endpoints
     @GetMapping("/sessions")
-    public List<PlanningSession> getAllPlanningSessions() {
-        return planningSessionRepository.findAll();
+    public List<PlanningSessionDTO> getAllPlanningSessions() {
+        List<PlanningSession> sessions = planningSessionRepository.findAll();
+        return sessions.stream()
+                .map(planningSessionService::toDto)
+                .collect(Collectors.toList());
     }
 
     @GetMapping("/sessions/{id}")
-    public ResponseEntity<PlanningSession> getPlanningSessionById(@PathVariable Long id) {
+    public ResponseEntity<PlanningSessionDTO> getPlanningSessionById(@PathVariable Long id) {
         Optional<PlanningSession> session = planningSessionRepository.findById(id);
-        return session.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+        return session.map(s -> ResponseEntity.ok(planningSessionService.toDto(s)))
+                    .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/sessions")
-    public PlanningSession createPlanningSession(@RequestBody PlanningSession session) {
-        return planningSessionRepository.save(session);
+    public PlanningSessionDTO createPlanningSession(@RequestBody PlanningSessionDTO sessionDto) {
+        PlanningSession session = planningSessionService.fromDto(sessionDto);
+        PlanningSession savedSession = planningSessionRepository.save(session);
+        return planningSessionService.toDto(savedSession);
     }
 
     @PutMapping("/sessions/{id}")
-    public ResponseEntity<PlanningSession> updatePlanningSession(@PathVariable Long id,
-            @RequestBody PlanningSession sessionDetails) {
+    public ResponseEntity<PlanningSessionDTO> updatePlanningSession(@PathVariable Long id,
+            @RequestBody PlanningSessionDTO sessionDetails) {
         Optional<PlanningSession> optionalSession = planningSessionRepository.findById(id);
         if (optionalSession.isPresent()) {
             PlanningSession session = optionalSession.get();
@@ -51,8 +62,17 @@ public class PlanningRestController {
             session.setDescription(sessionDetails.getDescription());
             session.setSelectedDates(sessionDetails.getSelectedDates());
             session.setCustomRoles(sessionDetails.getCustomRoles());
-            session.setSelectedPeople(sessionDetails.getSelectedPeople());
-            return ResponseEntity.ok(planningSessionRepository.save(session));
+
+            // Convertir les personCodes en objets Membre
+            if (sessionDetails.getSelectedPeople() != null && !sessionDetails.getSelectedPeople().isEmpty()) {
+                List<Membre> membres = membreRepository.findByPersonCodeIn(sessionDetails.getSelectedPeople());
+                session.setSelectedPeople(membres);
+            } else {
+                session.setSelectedPeople(new ArrayList<>()); // Liste vide
+            }
+
+            PlanningSession updatedSession = planningSessionRepository.save(session);
+            return ResponseEntity.ok(planningSessionService.toDto(updatedSession));
         } else {
             return ResponseEntity.notFound().build();
         }

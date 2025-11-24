@@ -141,28 +141,23 @@ const Planning2 = () => {
                 const availability = {};
                 availRes.data.forEach(a => {
                     if (a.membre && a.date) {
-                        const key = `${a.membre.nom}_${a.date}`; // Using name for key to match old logic, or ID?
-                        // Old logic used name. Let's try to stick to names for compatibility or switch to IDs.
-                        // Switching to IDs is better but requires more refactoring.
-                        // Let's use names for now as 'selectedPeople' in frontend are names in the old code.
-                        // But wait, 'selectedPeople' in backend are Membre objects.
-                        // Let's map everything to Names for the frontend state to minimize rewrite, 
-                        // but use IDs for backend comms.
+                        const key = `${a.membre.person_code}_${a.date}`;
                         availability[key] = a.disponible;
                     }
                 });
 
                 const assignments = {};
                 assignRes.data.forEach(a => {
-                    if (a.date && a.roleName && a.membreNom) {
+                    if (a.date && a.roleName) {
                         const key = `${a.date}_${a.roleName}`;
-                        assignments[key] = a.membreNom;
+                        // If membreNom exists, use it; otherwise use personCode if available
+                        assignments[key] = a.membreNom || a.membre?.person_code || a.membre?.nom;
                     }
                 });
 
                 return {
                     ...p,
-                    selectedPeople: p.selectedPeople ? p.selectedPeople.map(m => m.nom) : [],
+                    selectedPeople: p.selectedPeople ? p.selectedPeople.map(m => m.person_code) : [],
                     selectedDates: p.selectedDates || [],
                     customRoles: p.customRoles ? JSON.parse(p.customRoles) : {},
                     availability,
@@ -170,9 +165,17 @@ const Planning2 = () => {
                 };
             }));
 
+            // Create a map of personCodes to member objects for quick lookup
+            const memberMap = {};
+            const memberList = members.map(m => {
+                memberMap[m.person_code] = m;
+                return m;
+            });
+
             setStore({
                 global: {
-                    people: members.map(m => m.nom), // Just names for now
+                    people: memberList, // Store full member objects
+                    memberMap,          // For quick lookup by person_code
                     rolesConfig
                 },
                 plans: processedPlans,
@@ -181,7 +184,41 @@ const Planning2 = () => {
 
             if (processedPlans.length === 0) {
                 // Create default plan if none
-                // createNewPlan(true); // This needs to be async and handle backend
+                const today = new Date();
+                const defaultDates = [];
+                for (let i = 0; i < 4; i++) {
+                    const nextSunday = new Date(today);
+                    nextSunday.setDate(today.getDate() + (7 + 0 - today.getDay()) % 7 + (i * 7));
+                    defaultDates.push(dateToYMD(nextSunday));
+                }
+
+                const allMemberNames = members.map(m => m.nom);
+
+                const newPlanData = {
+                    nom: `Planning 1`,
+                    description: "Nouveau planning",
+                    selectedDates: defaultDates,
+                    customRoles: JSON.stringify({}),
+                    selectedPeople: allMemberNames
+                };
+
+                try {
+                    const res = await axios.post(`${API_URL}/planning/sessions`, newPlanData);
+                    const createdPlan = res.data;
+                    
+                    processedPlans.push({
+                        ...createdPlan,
+                        selectedPeople: allMemberNames,
+                        selectedDates: defaultDates,
+                        customRoles: {},
+                        availability: {},
+                        assignments: {}
+                    });
+                    showToast("Planning par défaut créé");
+                } catch (e) {
+                    console.error("Error creating default plan", e);
+                    showToast("Erreur création planning par défaut", "error");
+                }
             }
 
         } catch (e) {
@@ -226,7 +263,7 @@ const Planning2 = () => {
 
     // --- ACTIONS ---
 
-    const createNewPlan = async () => {
+    const createNewPlan = async (planName = null) => {
         const today = new Date();
         const defaultDates = [];
         for (let i = 0; i < 4; i++) {
@@ -235,18 +272,21 @@ const Planning2 = () => {
             defaultDates.push(dateToYMD(nextSunday));
         }
 
+        const planTitle = planName || `Planning ${store.plans.length + 1}`;
         const newPlanData = {
-            nom: `Planning ${store.plans.length + 1}`,
+            nom: planTitle,
             description: "Nouveau planning",
             selectedDates: defaultDates,
             customRoles: JSON.stringify({}),
-            selectedPeople: [] // Start empty or with all? Old logic: all.
+            selectedPeople: store.global.people.map(m => m.person_code) // Use person_codes instead of names
         };
 
         try {
             // We need to fetch all members to add them? Or just send IDs?
             // For now send empty, user can select.
+            console.log("Envoi des données au backend:", newPlanData);
             const res = await axios.post(`${API_URL}/planning/sessions`, newPlanData);
+            console.log("Réponse du backend:", res);
             const createdPlan = res.data;
 
             // Transform for frontend
@@ -262,8 +302,22 @@ const Planning2 = () => {
             setStore(prev => ({ ...prev, plans: [...prev.plans, newPlan], currentPlanId: newPlan.id }));
             showToast("Nouveau planning créé");
         } catch (e) {
-            console.error(e);
-            showToast("Erreur création planning", "error");
+            console.error("Erreur détaillée:", e);
+            if (e.response) {
+                // Erreur avec réponse du serveur
+                console.error("Données de réponse:", e.response.data);
+                console.error("Statut:", e.response.status);
+                console.error("En-têtes:", e.response.headers);
+                showToast(`Erreur: ${e.response.data.message || e.response.statusText}`, "error");
+            } else if (e.request) {
+                // Erreur sans réponse du serveur
+                console.error("Erreur de requête:", e.request);
+                showToast("Erreur réseau - impossible de contacter le serveur", "error");
+            } else {
+                // Erreur pendant la configuration de la requête
+                console.error("Erreur de configuration:", e.message);
+                showToast(`Erreur: ${e.message}`, "error");
+            }
         }
     };
 
@@ -316,11 +370,7 @@ const Planning2 = () => {
 
     const updatePlanBackend = async (plan) => {
         // Convert frontend plan to backend format
-        // We need to map selectedPeople names back to Membre objects (or at least IDs)
-        // This is tricky if we only have names.
-        // We should probably fetch members map.
-        // For now, let's assume we can't easily update 'selectedPeople' relations without IDs.
-        // We'll skip updating relations for now and focus on fields.
+        // Use person_codes for selectedPeople
 
         const payload = {
             id: plan.id,
@@ -328,7 +378,7 @@ const Planning2 = () => {
             description: plan.description,
             selectedDates: plan.selectedDates,
             customRoles: JSON.stringify(plan.customRoles),
-            // selectedPeople: ... we need IDs. 
+            selectedPeople: plan.selectedPeople || []
         };
 
         try {
@@ -367,13 +417,13 @@ const Planning2 = () => {
         });
     };
 
-    const togglePlanPerson = (name) => {
+    const togglePlanPerson = (personCode) => {
         setStore(prev => {
             const newPlans = prev.plans.map(p => {
                 if (p.id === prev.currentPlanId) {
-                    const newSelected = p.selectedPeople.includes(name)
-                        ? p.selectedPeople.filter(n => n !== name)
-                        : [...p.selectedPeople, name];
+                    const newSelected = p.selectedPeople.includes(personCode)
+                        ? p.selectedPeople.filter(code => code !== personCode)
+                        : [...p.selectedPeople, personCode];
                     const updated = { ...p, selectedPeople: newSelected };
                     // We need to update backend relations here.
                     // This requires fetching Member ID by name.
@@ -390,7 +440,7 @@ const Planning2 = () => {
         setStore(prev => {
             const newPlans = prev.plans.map(p => {
                 if (p.id === prev.currentPlanId) {
-                    const updated = { ...p, selectedPeople: includeAll ? [...prev.global.people] : [] };
+                    const updated = { ...p, selectedPeople: includeAll ? prev.global.people.map(m => m.person_code) : [] };
                     return updated;
                 }
                 return p;
@@ -399,13 +449,13 @@ const Planning2 = () => {
         });
     };
 
-    const toggleDispo = async (person, date, available) => {
+    const toggleDispo = async (personCode, date, available) => {
         // Update local
         setStore(prev => {
             const newPlans = prev.plans.map(p => {
                 if (p.id === prev.currentPlanId) {
                     const newAvailability = { ...p.availability };
-                    const key = `${person}_${date}`;
+                    const key = `${personCode}_${date}`;
                     if (available) delete newAvailability[key];
                     else newAvailability[key] = false;
                     return { ...p, availability: newAvailability };
@@ -657,12 +707,22 @@ const Planning2 = () => {
                         </div>
                         <div className="flex flex-col">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Planning Actif</span>
-                            <select value={store.currentPlanId || ''} onChange={(e) => switchPlan(e.target.value)} className="text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 cursor-pointer p-0">
-                                {store.plans.map(p => <option key={p.id} value={p.id}>{p.title || p.nom}</option>)}
-                            </select>
+                            {store.plans.length > 0 ? (
+                                <select value={store.currentPlanId || ''} onChange={(e) => switchPlan(e.target.value)} className="text-sm font-bold text-slate-800 bg-transparent border-none focus:ring-0 cursor-pointer p-0">
+                                    {store.plans.map(p => <option key={p.id} value={p.id}>{p.title || p.nom}</option>)}
+                                </select>
+                            ) : (
+                                <span className="text-sm font-bold text-slate-400 italic">Aucun planning</span>
+                            )}
                         </div>
-                        <button onClick={() => createNewPlan()} className="ml-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded" title="Nouveau Planning">
+                        <button onClick={() => {
+                            const planName = prompt("Entrez le nom du nouveau planning:");
+                            if (planName) {
+                                createNewPlan(planName);
+                            }
+                        }} className="ml-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded flex items-center gap-1" title="Nouveau Planning">
                             <i className="fa-solid fa-plus"></i>
+                            <span>Créer</span>
                         </button>
                     </div>
 
@@ -731,7 +791,7 @@ const Planning2 = () => {
 
                 {/* CONFIG TAB */}
                 <div style={{ display: activeTab === 'config' ? 'block' : 'none' }} className="h-full overflow-y-auto p-6">
-                    {currentPlan && (
+                    {currentPlan ? (
                         <div className="max-w-5xl mx-auto space-y-6">
                             <div className="space-y-6">
                                 <div className="bg-white p-6 rounded-xl shadow-md border border-primary/20 relative overflow-hidden">
@@ -765,21 +825,21 @@ const Planning2 = () => {
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-100">
                                                     {store.global.people.map(person => {
-                                                        const isIncluded = currentPlan.selectedPeople.includes(person);
+                                                        const isIncluded = currentPlan.selectedPeople.includes(person.person_code);
                                                         return (
-                                                            <tr key={person} className={`${isIncluded ? 'bg-white' : 'bg-slate-50 opacity-50'} hover:bg-indigo-50/50 hover:opacity-100`}>
+                                                            <tr key={person.person_code} className={`${isIncluded ? 'bg-white' : 'bg-slate-50 opacity-50'} hover:bg-indigo-50/50 hover:opacity-100`}>
                                                                 <td className="p-2 text-center">
-                                                                    <input type="checkbox" className="w-4 h-4 text-primary rounded focus:ring-primary" checked={isIncluded} onChange={() => togglePlanPerson(person)} />
+                                                                    <input type="checkbox" className="w-4 h-4 text-primary rounded focus:ring-primary" checked={isIncluded} onChange={() => togglePlanPerson(person.person_code)} />
                                                                 </td>
-                                                                <td className="p-2 font-medium text-slate-700">{person}</td>
+                                                                <td className="p-2 font-medium text-slate-700">{person.nom}</td>
                                                                 {currentPlan.selectedDates.map(date => {
-                                                                    const key = `${person}_${date}`;
+                                                                    const key = `${person.person_code}_${date}`;
                                                                     const isUnavailable = currentPlan.availability[key] === false;
                                                                     return (
                                                                         <td key={date} className="p-2 text-center">
                                                                             {isIncluded && (
                                                                                 <label className="checkbox-wrapper cursor-pointer inline-block w-5 h-5">
-                                                                                    <input type="checkbox" className="hidden" checked={!isUnavailable} onChange={(e) => toggleDispo(person, date, e.target.checked)} />
+                                                                                    <input type="checkbox" className="hidden" checked={!isUnavailable} onChange={(e) => toggleDispo(person.person_code, date, e.target.checked)} />
                                                                                     <div className={`w-full h-full rounded-full flex items-center justify-center text-white text-[10px] ${!isUnavailable ? 'bg-emerald-400' : 'bg-slate-300'}`}>
                                                                                         {!isUnavailable && <i className="fa-solid fa-check"></i>}
                                                                                     </div>
@@ -890,6 +950,25 @@ const Planning2 = () => {
                                     })()}
                                 </div>
                             </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400 p-4">
+                            <i className="fa-regular fa-calendar-plus text-6xl mb-4 text-slate-300"></i>
+                            <h3 className="text-xl font-bold text-slate-600 mb-2">Aucun planning sélectionné</h3>
+                            <p className="text-slate-500 text-center mb-6 max-w-md">
+                                Commencez par créer un nouveau planning en cliquant sur le bouton "Nouveau" dans la barre d'outils.
+                            </p>
+                            <button
+                                onClick={() => {
+                                    const planName = prompt("Entrez le nom du nouveau planning:");
+                                    if (planName) {
+                                        createNewPlan(planName);
+                                    }
+                                }}
+                                className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-indigo-600 transition shadow-lg text-sm font-medium flex items-center gap-2"
+                            >
+                                <i className="fa-solid fa-plus"></i> Créer un nouveau planning
+                            </button>
                         </div>
                     )}
                 </div>
