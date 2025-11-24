@@ -2,6 +2,8 @@ package com.example.demo.controller;
 
 import com.example.demo.model.*;
 import com.example.demo.repository.*;
+import com.example.demo.service.PlanningSessionService;
+import com.example.demo.dto.PlanningSessionDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +30,9 @@ public class PlanningRestController {
 
     @Autowired
     private PlanningSessionService planningSessionService;
+
+    @Autowired
+    private MembreRepository membreRepository;
 
     // Planning Session endpoints
     @GetMapping("/sessions")

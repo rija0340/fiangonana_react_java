@@ -19,5 +19,6 @@ public interface MembreRepository extends JpaRepository<Membre, Long> {
 
     List<Membre> findByNomIn(List<String> noms);
 
+    @Query("SELECT m FROM Membre m WHERE m.person_code IN :personCodes")
     List<Membre> findByPersonCodeIn(List<String> personCodes);
 }
