@@ -34,6 +34,10 @@ public class PlanningSession {
     @Column(columnDefinition = "TEXT")
     private String customRoles; // JSON string
 
+    // Configuration des disponibilités (JSON: "personId_date": boolean)
+    @Column(name = "availability", columnDefinition = "TEXT")
+    private String availability; // JSON string
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "planning_session_membres", joinColumns = @JoinColumn(name = "session_id"), inverseJoinColumns = @JoinColumn(name = "membre_id"))
     private List<Membre> selectedPeople;
@@ -99,6 +103,14 @@ public class PlanningSession {
 
     public void setCustomRoles(String customRoles) {
         this.customRoles = customRoles;
+    }
+
+    public String getAvailability() {
+        return availability;
+    }
+
+    public void setAvailability(String availability) {
+        this.availability = availability;
     }
 
     public List<Membre> getSelectedPeople() {

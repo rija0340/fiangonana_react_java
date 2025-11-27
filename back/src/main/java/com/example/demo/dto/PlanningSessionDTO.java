@@ -10,6 +10,7 @@ public class PlanningSessionDTO {
     private LocalDateTime createdAt;
     private List<String> selectedDates;
     private String customRoles;
+    private String availability;
     private List<String> selectedPeople; // personCodes, not full Membre objects
 
     // Getters and setters
@@ -59,6 +60,14 @@ public class PlanningSessionDTO {
 
     public void setCustomRoles(String customRoles) {
         this.customRoles = customRoles;
+    }
+
+    public String getAvailability() {
+        return availability;
+    }
+
+    public void setAvailability(String availability) {
+        this.availability = availability;
     }
 
     public List<String> getSelectedPeople() {

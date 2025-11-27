@@ -4,6 +4,7 @@ import com.example.demo.model.*;
 import com.example.demo.repository.*;
 import com.example.demo.service.PlanningSessionService;
 import com.example.demo.dto.PlanningSessionDTO;
+import com.example.demo.dto.PlanningAssignmentDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -47,7 +48,7 @@ public class PlanningRestController {
     public ResponseEntity<PlanningSessionDTO> getPlanningSessionById(@PathVariable Long id) {
         Optional<PlanningSession> session = planningSessionRepository.findById(id);
         return session.map(s -> ResponseEntity.ok(planningSessionService.toDto(s)))
-                    .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/sessions")
@@ -67,6 +68,7 @@ public class PlanningRestController {
             session.setDescription(sessionDetails.getDescription());
             session.setSelectedDates(sessionDetails.getSelectedDates());
             session.setCustomRoles(sessionDetails.getCustomRoles());
+            session.setAvailability(sessionDetails.getAvailability());
 
             // Convertir les personCodes en objets Membre
             if (sessionDetails.getSelectedPeople() != null && !sessionDetails.getSelectedPeople().isEmpty()) {
@@ -190,6 +192,32 @@ public class PlanningRestController {
     @GetMapping("/semaine/{numeroSemaine}/jour/{jourId}")
     public List<Planning> getPlanningBySemaineAndJour(@PathVariable Integer numeroSemaine, @PathVariable Long jourId) {
         return planningRepository.findByNumeroSemaineAndJourId(numeroSemaine, jourId);
+    }
+
+    // New endpoint for simple assignment creation
+    @PostMapping("/assignment")
+    public ResponseEntity<Planning> createAssignment(@RequestBody PlanningAssignmentDTO assignmentDTO) {
+        try {
+            // Find the session
+            Optional<PlanningSession> sessionOpt = planningSessionRepository.findById(assignmentDTO.getSessionId());
+            if (!sessionOpt.isPresent()) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            // Create Planning entity
+            Planning planning = new Planning();
+            planning.setSession(sessionOpt.get());
+            planning.setDate(assignmentDTO.getDate());
+            planning.setRoleName(assignmentDTO.getRoleName());
+            planning.setMembreNom(assignmentDTO.getMembreNom());
+
+            // Save and return
+            Planning savedPlanning = planningRepository.save(planning);
+            return ResponseEntity.ok(savedPlanning);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PostMapping

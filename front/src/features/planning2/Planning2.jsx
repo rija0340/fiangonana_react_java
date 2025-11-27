@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import axios from 'axios';
 import PlanningGlobalTab from './components/PlanningGlobalTab';
 import PlanningConfigTab from './components/PlanningConfigTab';
 import PlanningScheduleTab from './components/PlanningScheduleTab';
@@ -71,46 +72,44 @@ const Planning2Content = () => {
                                         defaultDates.push(`${y}-${m}-${d}`);
                                     }
 
-                                    import('axios').then(axios => {
-                                        axios.default.post('http://localhost:8082/api/planning/sessions', {
-                                            nom: planName,
-                                            description: "Nouveau planning",
-                                            selectedDates: defaultDates,
-                                            customRoles: JSON.stringify({}),
-                                            selectedPeople: store.global.people.map(m => m.id) // Use the global selected people
-                                        }, {
-                                            headers: {
-                                                'Content-Type': 'application/json'
-                                            }
+                                    axios.post('http://localhost:8082/api/planning/sessions', {
+                                        nom: planName,
+                                        description: "Nouveau planning",
+                                        selectedDates: defaultDates,
+                                        customRoles: JSON.stringify({}),
+                                        selectedPeople: store.global.people.map(m => m.id) // Use the global selected people
+                                    }, {
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        }
+                                    })
+                                        .then(res => {
+                                            const createdPlan = res.data;
+                                            const newPlan = {
+                                                ...createdPlan,
+                                                selectedPeople: store.global.people.map(m => m.id), // Include global selected people
+                                                selectedDates: defaultDates,
+                                                customRoles: {},
+                                                availability: {},
+                                                assignments: {}
+                                            };
+                                            addPlan(newPlan);
+                                            // Switch to the newly created plan
+                                            switchPlan(newPlan.id);
+                                            setToast({ msg: "Nouveau planning créé", type: 'info' });
                                         })
-                                            .then(res => {
-                                                const createdPlan = res.data;
-                                                const newPlan = {
-                                                    ...createdPlan,
-                                                    selectedPeople: store.global.people.map(m => m.id), // Include global selected people
-                                                    selectedDates: defaultDates,
-                                                    customRoles: {},
-                                                    availability: {},
-                                                    assignments: {}
-                                                };
-                                                addPlan(newPlan);
-                                                // Switch to the newly created plan
-                                                switchPlan(newPlan.id);
-                                                setToast({ msg: "Nouveau planning créé", type: 'info' });
-                                            })
-                                            .catch(e => {
-                                                console.error("Erreur détaillée:", e);
-                                                let errorMsg = "Erreur inconnue";
-                                                if (e.response) {
-                                                    errorMsg = e.response.data.message || e.response.statusText || "Erreur serveur";
-                                                } else if (e.request) {
-                                                    errorMsg = "Erreur réseau - impossible de contacter le serveur";
-                                                } else {
-                                                    errorMsg = e.message || "Erreur de configuration";
-                                                }
-                                                setToast({ msg: `Erreur: ${errorMsg}`, type: 'error' });
-                                            });
-                                    });
+                                        .catch(e => {
+                                            console.error("Erreur détaillée:", e);
+                                            let errorMsg = "Erreur inconnue";
+                                            if (e.response) {
+                                                errorMsg = e.response.data.message || e.response.statusText || "Erreur serveur";
+                                            } else if (e.request) {
+                                                errorMsg = "Erreur réseau - impossible de contacter le serveur";
+                                            } else {
+                                                errorMsg = e.message || "Erreur de configuration";
+                                            }
+                                            setToast({ msg: `Erreur: ${errorMsg}`, type: 'error' });
+                                        });
                                 }
                             }}
                             className="ml-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-2 py-1 rounded flex items-center gap-1"
@@ -153,9 +152,7 @@ const Planning2Content = () => {
                             onClick={async () => {
                                 if (currentPlan && window.confirm("Supprimer définitivement ce planning ?")) {
                                     try {
-                                        await import('axios').then(axios =>
-                                            axios.default.delete(`http://localhost:8082/api/planning/sessions/${currentPlan.id}`)
-                                        );
+                                        await axios.delete(`http://localhost:8082/api/planning/sessions/${currentPlan.id}`);
                                         deletePlan(currentPlan.id);
                                         setToast({ msg: "Planning supprimé", type: 'info' });
                                     } catch (e) {
@@ -186,13 +183,11 @@ const Planning2Content = () => {
                         <button
                             onClick={() => {
                                 if (window.confirm("ATTENTION: Cela va effacer toutes les données et plannings. Continuer ?")) {
-                                    import('axios').then(axios => {
-                                        axios.default.delete('http://localhost:8082/api/planning/reset')
-                                            .then(() => {
-                                                window.location.reload();
-                                            })
-                                            .catch(e => console.error(e));
-                                    });
+                                    axios.delete('http://localhost:8082/api/planning/reset')
+                                        .then(() => {
+                                            window.location.reload();
+                                        })
+                                        .catch(e => console.error(e));
                                 }
                             }}
                             className="p-2 text-slate-400 hover:text-red-500 transition"

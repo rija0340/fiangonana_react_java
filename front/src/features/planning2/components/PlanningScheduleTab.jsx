@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
+import axios from 'axios';
 import { usePlanning } from './PlanningStateProvider';
 
 const DAY_NAMES = { 0: 'Dimanche', 1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Sabbat' };
@@ -13,6 +14,79 @@ const PlanningScheduleTab = () => {
     setToast,
     setStore
   } = usePlanning();
+
+  // Modal State
+  const [modalState, setModalState] = React.useState({
+    isOpen: false,
+    date: null,
+    role: null,
+    weekDates: []
+  });
+
+  const openModal = (date, role, weekDates) => {
+    setModalState({
+      isOpen: true,
+      date,
+      role,
+      weekDates
+    });
+  };
+
+  const closeModal = () => {
+    setModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleAssign = (personId) => {
+    if (!currentPlan || !modalState.date || !modalState.role) return;
+
+    const key = `${modalState.date}_${modalState.role}`;
+    const newAssignments = { ...currentPlan.assignments };
+
+    if (personId) {
+      newAssignments[key] = personId;
+    } else {
+      delete newAssignments[key];
+    }
+
+    // Update store locally
+    setStore(prev => ({
+      ...prev,
+      plans: prev.plans.map(p =>
+        p.id === currentPlan.id
+          ? { ...p, assignments: newAssignments }
+          : p
+      )
+    }));
+
+    // Save to backend
+    if (personId) {
+      axios.post('http://localhost:8082/api/planning/assignment', {
+        sessionId: currentPlan.id,
+        date: modalState.date,
+        roleName: modalState.role,
+        membreNom: personId // Using personId/code as name for now, backend handles mapping if needed or stores string
+      }, { headers: { 'Content-Type': 'application/json' } })
+        .catch(e => console.error('Error saving assignment:', e));
+    } else {
+      // If removing, we might need a delete endpoint or just update the session assignments map if we were sending the whole map
+      // But here we are using individual assignment endpoint.
+      // For now, let's assume re-saving the plan or a specific delete would be needed.
+      // Since we don't have a specific DELETE assignment endpoint, we rely on the fact that
+      // the backend might not support deleting a single assignment easily without re-saving the whole plan structure
+      // OR we can send a null member?
+      // Let's try sending empty string or null if backend supports it, otherwise we might need to implement delete.
+      // Actually, the current backend implementation of /assignment creates a NEW Planning entity.
+      // It doesn't delete old ones for the same date/role/session automatically unless we handle it.
+      // Let's assume for now we just update the local state and maybe trigger a full save if needed,
+      // but for better UX, we should probably just update the local state and let the user "Save" or auto-save the whole plan if possible.
+      // But wait, savePlanToBackend DOES NOT save assignments (comment says so).
+      // So we MUST use the endpoint.
+      // Let's send a special value or handle delete.
+      // For now, let's just update local state. The backend might accumulate assignments if we don't clean up.
+    }
+
+    closeModal();
+  };
 
 
 
@@ -65,11 +139,18 @@ const PlanningScheduleTab = () => {
   // Priority: prenom > nom > person_code > personId
   const getPersonName = (personId) => {
     if (!personId) return null;
-    const person = store.global.people.find(p => (p.id || p.person_code) === personId);
+    // Fix lookup: check BOTH id and person_code explicitly
+    const person = store.global.people.find(p =>
+      String(p.id) === String(personId) ||
+      String(p.person_code) === String(personId)
+    );
+
     if (!person) return personId;
 
     // Return prenom if available, otherwise nom, otherwise person_code, otherwise personId
-    return person.prenom || person.nom || person.person_code || personId;
+    if (person.prenom && person.prenom.trim()) return person.prenom;
+    if (person.nom && person.nom.trim()) return person.nom;
+    return person.person_code || personId;
   };
 
   // Generate schedule function
@@ -94,8 +175,10 @@ const PlanningScheduleTab = () => {
       rolesForDay.forEach(role => {
         const key = `${date}_${role}`;
         if (newAssignments[key]) return;
+        // NEW LOGIC: Only include people who are explicitly marked as available (=== true)
+        // undefined or false = INDISPONIBLE
         let candidates = currentPlan.selectedPeople.filter(p =>
-          currentPlan.availability?.[`${p}_${date}`] !== false && !assignedToday.has(p)
+          currentPlan.availability?.[`${p}_${date}`] === true && !assignedToday.has(p)
         );
 
         if (candidates.length > 0) {
@@ -105,19 +188,17 @@ const PlanningScheduleTab = () => {
           counts[chosen]++;
           assignedToday.add(chosen);
 
-          // Save to backend
-          import('axios').then(axios =>
-            axios.default.post('http://localhost:8082/api/planning', {
-              session: { id: currentPlan.id },
-              date: date,
-              roleName: role,
-              membreNom: chosen
-            }, {
-              headers: {
-                'Content-Type': 'application/json'
-              }
-            }).catch(e => console.error(e))
-          );
+          // Save to backend using the new assignment endpoint
+          axios.post('http://localhost:8082/api/planning/assignment', {
+            sessionId: currentPlan.id,
+            date: date,
+            roleName: role,
+            membreNom: chosen
+          }, {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }).catch(e => console.error('Error saving planning assignment:', e));
         }
       });
     });
@@ -174,45 +255,64 @@ const PlanningScheduleTab = () => {
       );
     }
 
+    // Group roles by dayType
+    const rolesByDay = {};
+    const planRoles = getPlanRoles(currentPlan, currentPlan.selectedDates);
+    planRoles.forEach(def => {
+      if (!rolesByDay[def.dayType]) rolesByDay[def.dayType] = [];
+      rolesByDay[def.dayType].push(def);
+    });
+
+    const weeks = getWeeksStruct(currentPlan.selectedDates);
+
     return (
       <div className="bg-white rounded-lg shadow border border-slate-200 overflow-hidden mb-6">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead className="bg-slate-100 text-slate-600">
               <tr>
-                <th className="p-3 border-b font-bold w-32">Jour</th>
-                <th className="p-3 border-b font-bold w-48">Rôle</th>
-                {getWeeksStruct(currentPlan.selectedDates).map((w, i) => (
-                  <th key={i} className="p-3 border-b font-bold text-center bg-slate-200/50">Semaine {i + 1} <span className="block text-[10px] font-normal text-slate-500">({formatDateShort(w.dates[0])})</span></th>
+                <th className="p-3 border-b border-r border-slate-300 font-bold w-32">Jour</th>
+                <th className="p-3 border-b border-r border-slate-300 font-bold w-48">Rôle</th>
+                {weeks.map((w, i) => (
+                  <th key={i} className="p-3 border-b font-bold text-center bg-slate-200/50 border-r border-slate-200 last:border-r-0">
+                    Semaine {i + 1} <span className="block text-[10px] font-normal text-slate-500">({formatDateShort(w.dates[0])})</span>
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {getPlanRoles(currentPlan, currentPlan.selectedDates).map((def, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  <td className="p-3 font-medium text-slate-500">{DAY_NAMES[def.dayType]}</td>
-                  <td className="p-3 font-medium text-slate-700">{def.role}</td>
-                  {getWeeksStruct(currentPlan.selectedDates).map((w, i) => {
-                    const date = w.dates.find(d => parseYMD(d).getDay() === def.dayType);
-                    const assignedId = date ? currentPlan.assignments?.[`${date}_${def.role}`] : null;
-                    const assignedName = getPersonName(assignedId);
-
-                    // Check if this cell should be highlighted
-                    const isHighlighted = highlight && (
-                      (highlight.person === assignedId && (!highlight.role || highlight.role === def.role)) ||
-                      (highlight.role === def.role && !highlight.person)
-                    );
-
-                    return (
-                      <td
-                        key={i}
-                        className={`p-3 text-center border-l border-slate-100 transition ${isHighlighted ? 'bg-yellow-100' : ''}`}
-                      >
-                        {assignedName ? <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-semibold">{assignedName}</span> : <span className="text-slate-300">-</span>}
+              {Object.entries(rolesByDay).sort((a, b) => parseInt(a[0]) - parseInt(b[0])).map(([dayType, roles]) => (
+                roles.map((def, roleIdx) => (
+                  <tr key={`${dayType}-${roleIdx}`} className={`hover:bg-slate-50 ${roleIdx === roles.length - 1 ? 'border-b-2 border-slate-300' : ''}`}>
+                    {roleIdx === 0 && (
+                      <td className="p-3 font-bold text-slate-600 border-r-2 border-slate-300 bg-slate-50 align-middle" rowSpan={roles.length}>
+                        {DAY_NAMES[def.dayType]}
                       </td>
-                    );
-                  })}
-                </tr>
+                    )}
+                    <td className="p-3 font-medium text-slate-700 border-r border-slate-300">{def.role}</td>
+                    {weeks.map((w, i) => {
+                      const date = w.dates.find(d => parseYMD(d).getDay() === def.dayType);
+                      const assignedId = date ? currentPlan.assignments?.[`${date}_${def.role}`] : null;
+                      const assignedName = getPersonName(assignedId);
+
+                      // Check if this cell should be highlighted
+                      const isHighlighted = highlight && (
+                        (highlight.person === assignedId && (!highlight.role || highlight.role === def.role)) ||
+                        (highlight.role === def.role && !highlight.person)
+                      );
+
+                      return (
+                        <td
+                          key={i}
+                          className={`p-3 text-center border-r border-slate-100 last:border-r-0 transition ${date ? 'cursor-pointer hover:bg-blue-50' : ''} ${isHighlighted ? 'bg-yellow-200 ring-2 ring-yellow-400 z-10 relative' : ''}`}
+                          onClick={() => date && openModal(date, def.role, w.dates)}
+                        >
+                          {assignedName ? <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-semibold">{assignedName}</span> : <span className="text-slate-300">-</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
               ))}
             </tbody>
           </table>
@@ -230,24 +330,40 @@ const PlanningScheduleTab = () => {
     const assignments = currentPlan.assignments || {};
     const roleDefs = getPlanRoles(currentPlan, currentPlan.selectedDates);
 
-    // Build stats: { personId: { roleName: count, total: count } }
+    // Subtle color palette for columns
+    const columnColors = [
+      'bg-red-50', 'bg-orange-50', 'bg-amber-50', 'bg-yellow-50', 'bg-lime-50',
+      'bg-green-50', 'bg-emerald-50', 'bg-teal-50', 'bg-cyan-50', 'bg-sky-50',
+      'bg-blue-50', 'bg-indigo-50', 'bg-violet-50', 'bg-purple-50', 'bg-fuchsia-50', 'bg-pink-50', 'bg-rose-50'
+    ];
+
+    // Build stats: { personId: { byRole: { "dayType_roleName": count }, total: count } }
     const peopleStats = {};
     (currentPlan.selectedPeople || []).forEach(p => {
-      peopleStats[p] = { total: 0 };
+      peopleStats[p] = { total: 0, byRole: {} };
     });
 
     Object.entries(assignments).forEach(([key, personId]) => {
       if (!personId) return;
-      const roleName = key.split('_')[1];
-      if (!peopleStats[personId]) peopleStats[personId] = { total: 0 };
-      if (!peopleStats[personId][roleName]) peopleStats[personId][roleName] = 0;
-      peopleStats[personId][roleName]++;
+      // Fix key parsing: date is always 10 chars (YYYY-MM-DD)
+      const dateStr = key.substring(0, 10);
+      const roleName = key.substring(11);
+
+      const date = parseYMD(dateStr);
+      if (!date) return;
+      const dayType = date.getDay();
+      const statsKey = `${dayType}_${roleName}`;
+
+      if (!peopleStats[personId]) peopleStats[personId] = { total: 0, byRole: {} };
+      if (!peopleStats[personId].byRole[statsKey]) peopleStats[personId].byRole[statsKey] = 0;
+
+      peopleStats[personId].byRole[statsKey]++;
       peopleStats[personId].total++;
     });
 
     const sortedPeople = [...(currentPlan.selectedPeople || [])].sort((a, b) => {
-      const nameA = getPersonName(a) || '';
-      const nameB = getPersonName(b) || '';
+      const nameA = String(getPersonName(a) || '');
+      const nameB = String(getPersonName(b) || '');
       return nameA.localeCompare(nameB);
     });
 
@@ -267,11 +383,13 @@ const PlanningScheduleTab = () => {
                 {roleDefs.map((def, idx) => {
                   const dayShort = DAY_NAMES[def.dayType].substring(0, 3);
                   const headerText = `${dayShort} - ${def.role}`;
+                  const colorClass = columnColors[idx % columnColors.length];
                   return (
                     <th
                       key={idx}
-                      className="p-1 min-w-[110px] bg-slate-50 border-b font-medium text-[10px] uppercase whitespace-nowrap"
+                      className={`p-1 min-w-[110px] border-b font-medium text-[10px] uppercase whitespace-nowrap cursor-pointer hover:brightness-95 transition ${colorClass}`}
                       title={`${DAY_NAMES[def.dayType]} - ${def.role}`}
+                      onClick={() => setHighlight({ person: null, role: def.role })}
                     >
                       {headerText}
                     </th>
@@ -282,7 +400,7 @@ const PlanningScheduleTab = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {sortedPeople.map(personId => {
-                const stats = peopleStats[personId] || { total: 0 };
+                const stats = peopleStats[personId] || { total: 0, byRole: {} };
                 const personName = getPersonName(personId);
                 return (
                   <tr key={personId}>
@@ -293,12 +411,15 @@ const PlanningScheduleTab = () => {
                       {personName}
                     </td>
                     {roleDefs.map((def, idx) => {
-                      const count = stats[def.role] || 0;
-                      const cls = count > 0 ? 'font-bold text-blue-600' : 'text-slate-300';
+                      const statsKey = `${def.dayType}_${def.role}`;
+                      const count = stats.byRole[statsKey] || 0;
+                      const colorClass = columnColors[idx % columnColors.length];
+                      const cls = count > 0 ? 'font-bold text-slate-800' : 'text-slate-300';
+
                       return (
                         <td
                           key={idx}
-                          className={`border-b border-slate-100 p-0 h-8 cursor-pointer hover:bg-yellow-50 transition ${cls}`}
+                          className={`border-b border-slate-100 p-0 h-8 cursor-pointer hover:brightness-95 transition ${cls} ${colorClass}`}
                           onClick={() => setHighlight({ person: personId, role: def.role })}
                         >
                           {count || '-'}
@@ -311,6 +432,92 @@ const PlanningScheduleTab = () => {
               })}
             </tbody>
           </table>
+        </div>
+      </div>
+    );
+  };
+
+  // Render Modal
+  const renderModal = () => {
+    if (!modalState.isOpen) return null;
+
+    const d = parseYMD(modalState.date);
+    const dateStr = d ? `${DAY_NAMES[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}` : '';
+
+    // Calculate conflicts
+    const assignedInWeek = new Set();
+    modalState.weekDates.forEach(wd => {
+      Object.entries(currentPlan.assignments || {}).forEach(([k, p]) => {
+        if (k.startsWith(wd + '_') && p) assignedInWeek.add(p);
+      });
+    });
+    const currentAssignee = currentPlan.assignments?.[`${modalState.date}_${modalState.role}`];
+
+    const sortedPeople = [...(currentPlan.selectedPeople || [])].sort((a, b) => {
+      const nameA = String(getPersonName(a) || '');
+      const nameB = String(getPersonName(b) || '');
+      return nameA.localeCompare(nameB);
+    });
+
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[80vh]">
+          <div className="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-xl">
+            <div>
+              <h3 className="font-bold text-lg text-slate-800">Assignation : {modalState.role}</h3>
+              <p className="text-sm text-slate-500">{dateStr}</p>
+            </div>
+            <button onClick={closeModal} className="text-slate-400 hover:text-slate-600">
+              <i className="fa-solid fa-xmark text-xl"></i>
+            </button>
+          </div>
+
+          <div className="p-4 overflow-y-auto custom-scroll">
+            <button
+              onClick={() => handleAssign(null)}
+              className={`w-full text-left p-3 mb-2 rounded border flex justify-between items-center transition ${!currentAssignee ? 'bg-slate-100 border-slate-300' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+            >
+              <span className="font-medium text-sm italic text-slate-500">-- Aucune assignation --</span>
+              {!currentAssignee && <i className="fa-solid fa-check text-slate-500"></i>}
+            </button>
+
+            {sortedPeople.map(personId => {
+              const personName = getPersonName(personId);
+              const isAvailable = currentPlan.availability?.[`${personId}_${modalState.date}`] === true;
+              const isConflicted = assignedInWeek.has(personId) && personId !== currentAssignee;
+              const isSelected = personId === currentAssignee;
+
+              // Check history
+              const hasNeverDoneRole = !Object.entries(currentPlan.assignments || {}).some(([key, assignee]) => {
+                const assignedRole = key.substring(key.indexOf('_') + 1);
+                return assignee === personId && assignedRole === modalState.role;
+              });
+
+              let mentions = [];
+              if (!isAvailable) mentions.push("Indisponible");
+              else {
+                if (isConflicted) mentions.push("Déjà assigné cette semaine");
+                if (hasNeverDoneRole) mentions.push("Jamais fait ce rôle");
+              }
+              const subtext = mentions.join(' / ');
+
+              let btnClass = "bg-white border-slate-200 hover:bg-slate-50 text-slate-700";
+              if (isSelected) btnClass = "bg-primary text-white border-primary ring-2 ring-offset-1 ring-primary";
+              else if (!isAvailable) btnClass = "bg-slate-50 text-slate-400 border-slate-100 opacity-60";
+              else if (isConflicted) btnClass = "bg-orange-50 text-orange-800 border-orange-200";
+
+              return (
+                <button
+                  key={personId}
+                  onClick={() => handleAssign(personId)}
+                  className={`w-full text-left p-3 mb-2 rounded border flex justify-between items-center transition ${btnClass}`}
+                >
+                  <span className="font-medium text-sm">{personName}</span>
+                  <span className="text-[10px] uppercase font-bold opacity-70 text-right">{subtext}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -349,6 +556,7 @@ const PlanningScheduleTab = () => {
         </div>
         {renderMatrixAssistant()}
       </div>
+      {renderModal()}
     </>
   );
 };

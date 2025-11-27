@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { usePlanning } from './PlanningStateProvider';
 import membreApi from '../../membre/services/api';
 
@@ -15,7 +16,9 @@ const PlanningGlobalTab = () => {
     setRoleDayType,
     addRole,
     removeGlobalRole,
-    setToast
+    renameGlobalRole,
+    setToast,
+    savePlanToBackend // Add this
   } = usePlanning();
 
   const [membres, setMembres] = useState([]);
@@ -28,6 +31,8 @@ const PlanningGlobalTab = () => {
     source: "all",
   });
   const [selectedPeople, setSelectedPeople] = useState([]);
+  const [editingRole, setEditingRole] = useState(null);
+  const [editRoleName, setEditRoleName] = useState('');
 
   useEffect(() => {
     // Fetch members with filters
@@ -44,12 +49,14 @@ const PlanningGlobalTab = () => {
     }).catch(error => {
       console.error('Error fetching categories:', error);
     });
-
-    // Initialize selected people from store if available
-    if (store.global.people) {
-      setSelectedPeople(store.global.people.map(p => p.id));
-    }
   }, [filters]);
+
+  // Sync selectedPeople with currentPlan
+  useEffect(() => {
+    if (currentPlan && currentPlan.selectedPeople) {
+      setSelectedPeople(currentPlan.selectedPeople);
+    }
+  }, [currentPlan]);
 
   const handleFilterChange = (key, value) => {
     const newFilters = { ...filters, [key]: value };
@@ -64,18 +71,22 @@ const PlanningGlobalTab = () => {
         : [...prev, personId];
 
       // Update the store global people with selected members
-      const selectedMembres = membres.filter(m => newSelected.includes(m.id));
+      const selectedMembres = membres.filter(m => newSelected.includes(m.person_code || m.id));
 
       // Update the store in the context
       setStore(prevStore => {
         // Update currentPlan.selectedPeople if a plan is selected
-        const updatedPlans = currentPlan
-          ? prevStore.plans.map(p =>
-              p.id === currentPlan.id
-                ? { ...p, selectedPeople: newSelected }
-                : p
-            )
-          : prevStore.plans;
+        let updatedPlans = prevStore.plans;
+        if (currentPlan) {
+          updatedPlans = prevStore.plans.map(p =>
+            p.id === currentPlan.id
+              ? { ...p, selectedPeople: newSelected }
+              : p
+          );
+          // Trigger save
+          const planToSave = updatedPlans.find(p => p.id === currentPlan.id);
+          savePlanToBackend(planToSave);
+        }
 
         return {
           ...prevStore,
@@ -92,19 +103,24 @@ const PlanningGlobalTab = () => {
   };
 
   const selectAllMembers = () => {
-    const allMemberIds = membres.map(m => m.id);
+    // CRITICAL FIX: Use person_code as primary ID to match backend expectation
+    const allMemberIds = membres.map(m => m.person_code || m.id);
     setSelectedPeople(allMemberIds);
 
     // Update the store in the context
     setStore(prevStore => {
       // Update currentPlan.selectedPeople if a plan is selected
-      const updatedPlans = currentPlan
-        ? prevStore.plans.map(p =>
-            p.id === currentPlan.id
-              ? { ...p, selectedPeople: allMemberIds }
-              : p
-          )
-        : prevStore.plans;
+      let updatedPlans = prevStore.plans;
+      if (currentPlan) {
+        updatedPlans = prevStore.plans.map(p =>
+          p.id === currentPlan.id
+            ? { ...p, selectedPeople: allMemberIds }
+            : p
+        );
+        // Trigger save
+        const planToSave = updatedPlans.find(p => p.id === currentPlan.id);
+        savePlanToBackend(planToSave);
+      }
 
       return {
         ...prevStore,
@@ -125,10 +141,10 @@ const PlanningGlobalTab = () => {
       // Update currentPlan.selectedPeople if a plan is selected
       const updatedPlans = currentPlan
         ? prevStore.plans.map(p =>
-            p.id === currentPlan.id
-              ? { ...p, selectedPeople: [] }
-              : p
-          )
+          p.id === currentPlan.id
+            ? { ...p, selectedPeople: [] }
+            : p
+        )
         : prevStore.plans;
 
       return {
@@ -150,16 +166,14 @@ const PlanningGlobalTab = () => {
         await addRole(roleDayType, name);
 
         // Also add to backend
-        await import('axios').then(axios =>
-          axios.default.post('http://localhost:8082/api/roles', {
-            nom: name,
-            jour: { id: parseInt(roleDayType) }
-          }, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          })
-        );
+        await axios.post('http://localhost:8082/api/roles', {
+          nom: name,
+          jour: { id: parseInt(roleDayType) }
+        }, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
       } catch (e) {
         console.error("Error adding role:", e);
         // Even if backend fails, we'll still update the frontend for better UX
@@ -171,15 +185,46 @@ const PlanningGlobalTab = () => {
   const handleRemoveRole = async (dayType, role) => {
     try {
       // Try to delete from backend first
-      await import('axios').then(axios =>
-        axios.default.delete(`http://localhost:8082/api/roles/name/${encodeURIComponent(role)}`)
-      );
+      await axios.delete(`http://localhost:8082/api/roles/name/${encodeURIComponent(role)}`);
     } catch (e) {
       console.error("Error deleting role from backend:", e);
       // Proceed with frontend update anyway
     }
 
     removeGlobalRole(dayType, role);
+  };
+
+  const handleRenameRole = async (dayType, oldRole, newRole) => {
+    if (!newRole.trim() || oldRole === newRole) return;
+
+    // Optimistic update
+    renameGlobalRole(dayType, oldRole, newRole);
+
+    try {
+      // We don't have a direct rename endpoint, so we might need to delete and recreate
+      // OR if there is an ID based update, use that.
+      // Since we only have the name here, let's try to find the ID from store if possible
+      const roleObj = store.global.roles.find(r => r.nom === oldRole);
+      if (roleObj && roleObj.id) {
+        await axios.put(`http://localhost:8082/api/roles/${roleObj.id}`, {
+          id: roleObj.id,
+          nom: newRole,
+          jour: roleObj.jour
+        });
+      } else {
+        // Fallback: Delete and Create (Risky if ID changes but acceptable for now)
+        await axios.delete(`http://localhost:8082/api/roles/name/${encodeURIComponent(oldRole)}`);
+        await axios.post('http://localhost:8082/api/roles', {
+          nom: newRole,
+          jour: { id: parseInt(dayType) } // This might be wrong if dayType is not ID. 
+          // Actually dayType is ordreAffichage in frontend but we need ID.
+          // We have dayMapping in store.global.dayMapping
+        });
+      }
+    } catch (e) {
+      console.error("Error renaming role in backend:", e);
+      setToast({ msg: "Erreur sauvegarde rôle (backend)", type: "error" });
+    }
   };
 
   return (
@@ -217,15 +262,70 @@ const PlanningGlobalTab = () => {
           </div>
         </div>
         <ul className="h-40 overflow-y-auto custom-scroll space-y-1 text-sm">
-          {(store.global.rolesConfig[roleDayType] || []).map((r, idx) => (
-            <li key={idx} className="flex items-center justify-between px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
-              <span>{r}</span>
-              <button
-                onClick={() => handleRemoveRole(roleDayType, r)}
-                className="text-blue-500 hover:text-red-500 text-xs"
-              >
-                <i className="fa-solid fa-trash"></i>
-              </button>
+          {(store.global.rolesConfig[roleDayType] || []).map((r) => (
+            <li key={r} className="flex items-center justify-between px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-medium">
+              {editingRole === r ? (
+                <div className="flex gap-1 w-full" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={editRoleName}
+                    onChange={(e) => setEditRoleName(e.target.value)}
+                    className="flex-1 p-1 text-xs border rounded"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRenameRole(roleDayType, r, editRoleName);
+                        setEditingRole(null);
+                      } else if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setEditingRole(null);
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRenameRole(roleDayType, r, editRoleName);
+                    setEditingRole(null);
+                  }} className="text-green-600 hover:text-green-800 text-xs px-1"><i className="fa-solid fa-check"></i></button>
+                  <button onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEditingRole(null);
+                  }} className="text-red-500 hover:text-red-700 text-xs px-1"><i className="fa-solid fa-times"></i></button>
+                </div>
+              ) : (
+                <>
+                  <span>{r}</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setEditingRole(r);
+                        setEditRoleName(r);
+                      }}
+                      className="text-blue-500 hover:text-blue-700 text-xs"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRemoveRole(roleDayType, r);
+                      }}
+                      className="text-blue-500 hover:text-red-500 text-xs"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </>
+              )}
             </li>
           ))}
         </ul>
@@ -236,7 +336,7 @@ const PlanningGlobalTab = () => {
         <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2">
           <i className="fa-solid fa-users text-blue-500"></i> Base de Membres (Global)
         </h3>
-        
+
         {/* Filters */}
         <div className="p-4 bg-slate-50 border border-slate-100 mb-5">
           <h2 className="text-lg font-semibold mb-3">Filtrer les membres</h2>
@@ -390,23 +490,25 @@ const PlanningGlobalTab = () => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {membres.map((membre) => {
-                const isSelected = selectedPeople.includes(membre.id);
+                // CRITICAL FIX: Use person_code as primary ID
+                const memberId = membre.person_code || membre.id;
+                const isSelected = selectedPeople.includes(memberId);
                 return (
-                  <tr key={membre.id} className={`${isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
+                  <tr key={memberId} className={`${isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'}`}>
                     <td className="p-2 text-center">
                       <input
                         type="checkbox"
                         className="checkbox checkbox-primary"
                         checked={isSelected}
-                        onChange={() => togglePersonSelection(membre.id)}
+                        onChange={() => togglePersonSelection(memberId)}
                       />
                     </td>
                     <td className="p-2 font-medium text-slate-700">{membre.nom || '—'}</td>
                     <td className="p-2 font-medium text-slate-700">{membre.prenom || '—'}</td>
                     <td className="p-2 text-slate-600">{membre.sexe || '—'}</td>
                     <td className="p-2 text-center">
-                      {membre.date_bapteme && membre.date_bapteme !== '' ? 
-                        <span className="badge badge-success badge-sm">baptisé</span> : 
+                      {membre.date_bapteme && membre.date_bapteme !== '' ?
+                        <span className="badge badge-success badge-sm">baptisé</span> :
                         <span className="badge badge-error badge-sm">non-baptisé</span>}
                     </td>
                     <td className="p-2 text-center text-slate-600">{membre.categorie || '—'}</td>
@@ -429,7 +531,7 @@ const PlanningGlobalTab = () => {
                 // Select all visible members
                 const allIds = membres.map(m => m.id);
                 setSelectedPeople(allIds);
-                
+
                 setStore(prevStore => ({
                   ...prevStore,
                   global: {

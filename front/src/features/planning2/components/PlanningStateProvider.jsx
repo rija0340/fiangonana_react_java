@@ -101,11 +101,50 @@ export const PlanningStateProvider = ({ children }) => {
     }
   }, []);
 
+  // Auto-save function to persist plan changes to backend
+  const savePlanToBackend = useCallback(async (plan) => {
+    if (!plan || !plan.id) return;
+
+    try {
+      const sessionData = {
+        nom: plan.nom || plan.title,
+        description: plan.description || "Planning",
+        selectedDates: plan.selectedDates || [],
+        customRoles: typeof plan.customRoles === 'string'
+          ? plan.customRoles
+          : JSON.stringify(plan.customRoles || {}),
+        availability: typeof plan.availability === 'string'
+          ? plan.availability
+          : JSON.stringify(plan.availability || {}),
+        selectedPeople: plan.selectedPeople || [],
+      };
+
+      await axios.put(`http://localhost:8082/api/planning/sessions/${plan.id}`, sessionData, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Error auto-saving plan:', error);
+    }
+  }, []);
+
   const loadPlans = useCallback(async () => {
     try {
       setStore(prev => ({ ...prev, loading: true, error: null }));
       const plans = await planningService.getAllSessions(); // Use sessions instead of plans
-      setStore(prev => ({ ...prev, plans, loading: false }));
+
+      // Parse customRoles if it's a string
+      const parsedPlans = plans.map(plan => ({
+        ...plan,
+        customRoles: typeof plan.customRoles === 'string'
+          ? (plan.customRoles ? JSON.parse(plan.customRoles) : {})
+          : (plan.customRoles || {}),
+        availability: typeof plan.availability === 'string'
+          ? (plan.availability ? JSON.parse(plan.availability) : {})
+          : (plan.availability || {}),
+        assignments: plan.assignments || {}
+      }));
+
+      setStore(prev => ({ ...prev, plans: parsedPlans, loading: false }));
     } catch (error) {
       setStore(prev => ({ ...prev, error: error.message, loading: false }));
     }
@@ -133,15 +172,32 @@ export const PlanningStateProvider = ({ children }) => {
     }
   }, []);
 
-  const loadPlansBySession = useCallback(async (sessionId) => {
+  const loadAssignmentsForSession = useCallback(async (sessionId) => {
     try {
-      setStore(prev => ({ ...prev, loading: true, error: null }));
-      const plans = await planningService.getPlanningBySession(sessionId);
-      setStore(prev => ({ ...prev, plans, loading: false }));
-      return plans;
+      // Don't set global loading to true to avoid full screen spinner on switch
+      const assignmentsList = await planningService.getPlanningBySession(sessionId);
+
+      // Convert list to map: { "date_role": "membreNom" }
+      const assignmentsMap = {};
+      assignmentsList.forEach(a => {
+        if (a.date && a.roleName) {
+          const key = `${a.date}_${a.roleName}`;
+          assignmentsMap[key] = a.membreNom;
+        }
+      });
+
+      setStore(prev => ({
+        ...prev,
+        plans: prev.plans.map(p =>
+          p.id === sessionId
+            ? { ...p, assignments: assignmentsMap }
+            : p
+        )
+      }));
+
+      return assignmentsMap;
     } catch (error) {
-      setStore(prev => ({ ...prev, error: error.message, loading: false }));
-      throw error;
+      console.error("Error loading assignments:", error);
     }
   }, []);
 
@@ -190,7 +246,10 @@ export const PlanningStateProvider = ({ children }) => {
 
   const switchPlan = useCallback((planId) => {
     setStore(prev => ({ ...prev, currentPlanId: planId }));
-  }, []);
+    if (planId) {
+      loadAssignmentsForSession(planId);
+    }
+  }, [loadAssignmentsForSession]);
 
   const deletePlan = useCallback((planId) => {
     setStore(prev => ({
@@ -210,89 +269,117 @@ export const PlanningStateProvider = ({ children }) => {
 
   // Functions for PlanningConfigTab
   const updatePlanTitle = useCallback((newTitle) => {
-    setStore(prev => ({
-      ...prev,
-      plans: prev.plans.map(p => 
-        p.id === prev.currentPlanId ? { ...p, title: newTitle } : p
-      )
-    }));
-  }, []);
+    setStore(prev => {
+      const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
+      if (!currentPlan) return prev;
+
+      const updatedPlan = { ...currentPlan, title: newTitle, nom: newTitle };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
+      return {
+        ...prev,
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId ? updatedPlan : p
+        )
+      };
+    });
+  }, [savePlanToBackend]);
 
   const togglePlanPerson = useCallback((personId) => {
     setStore(prev => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
-      
+
       const isSelected = currentPlan.selectedPeople?.includes(personId);
       const newSelectedPeople = isSelected
         ? currentPlan.selectedPeople.filter(p => p !== personId)
         : [...(currentPlan.selectedPeople || []), personId];
-      
+
+      const updatedPlan = { ...currentPlan, selectedPeople: newSelectedPeople };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
       return {
         ...prev,
-        plans: prev.plans.map(p => 
-          p.id === prev.currentPlanId 
-            ? { ...p, selectedPeople: newSelectedPeople } 
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
             : p
         )
       };
     });
-  }, []);
+  }, [savePlanToBackend]);
 
   const selectAllPeopleForPlan = useCallback((selectAll) => {
     setStore(prev => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
-      
+
       const allPeopleIds = prev.global.people
         .filter(p => p && p.id)
         .map(p => p.id);
-      
+
+      const updatedPlan = {
+        ...currentPlan,
+        selectedPeople: selectAll ? allPeopleIds : []
+      };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
       return {
         ...prev,
-        plans: prev.plans.map(p => 
-          p.id === prev.currentPlanId 
-            ? { ...p, selectedPeople: selectAll ? allPeopleIds : [] } 
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
             : p
         )
       };
     });
-  }, []);
+  }, [savePlanToBackend]);
 
   const toggleDispo = useCallback((personId, date, isAvailable) => {
     setStore(prev => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
-      
+
       const key = `${personId}_${date}`;
       const newAvailability = { ...currentPlan.availability, [key]: isAvailable };
-      
+
+      const updatedPlan = { ...currentPlan, availability: newAvailability };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
       return {
         ...prev,
-        plans: prev.plans.map(p => 
-          p.id === prev.currentPlanId 
-            ? { ...p, availability: newAvailability } 
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
             : p
         )
       };
     });
-  }, []);
+  }, [savePlanToBackend]);
 
   const togglePlanRole = useCallback((dayType, role, enable) => {
     setStore(prev => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
-      
-      const customRoles = currentPlan.customRoles ? 
-        typeof currentPlan.customRoles === 'string' ? 
-          JSON.parse(currentPlan.customRoles) : 
-          currentPlan.customRoles : 
+
+      const customRoles = currentPlan.customRoles ?
+        typeof currentPlan.customRoles === 'string' ?
+          JSON.parse(currentPlan.customRoles) :
+          currentPlan.customRoles :
         {};
-      
+
       const dayCustom = customRoles[dayType] || {};
       const removed = dayCustom.remove || [];
       const added = dayCustom.add || [];
-      
+
       let newRemoved, newAdded;
       if (enable) {
         // Enable role: remove from 'remove' list if present
@@ -307,57 +394,62 @@ export const PlanningStateProvider = ({ children }) => {
         }
         newAdded = added;
       }
-      
+
       const newDayCustom = {
         ...dayCustom,
         remove: newRemoved,
         add: newAdded
       };
-      
+
       const newCustomRoles = {
         ...customRoles,
         [dayType]: newDayCustom
       };
-      
+
+      const updatedPlan = { ...currentPlan, customRoles: newCustomRoles };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
       return {
         ...prev,
-        plans: prev.plans.map(p => 
-          p.id === prev.currentPlanId 
-            ? { ...p, customRoles: newCustomRoles } 
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
             : p
         )
       };
     });
-  }, []);
+  }, [savePlanToBackend]);
 
   const addCustomPlanRole = useCallback((dayType, roleName) => {
     if (!roleName.trim()) return;
-    
+
     setStore(prev => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
-      
-      const customRoles = currentPlan.customRoles ? 
-        typeof currentPlan.customRoles === 'string' ? 
-          JSON.parse(currentPlan.customRoles) : 
-          currentPlan.customRoles : 
+
+      const customRoles = currentPlan.customRoles ?
+        typeof currentPlan.customRoles === 'string' ?
+          JSON.parse(currentPlan.customRoles) :
+          currentPlan.customRoles :
         {};
-      
+
       const dayCustom = customRoles[dayType] || {};
       const added = dayCustom.add || [];
-      
+
       if (added.includes(roleName)) return prev;
-      
+
       const newDayCustom = {
         ...dayCustom,
         add: [...added, roleName]
       };
-      
+
       const newCustomRoles = {
         ...customRoles,
         [dayType]: newDayCustom
       };
-      
+
       // Also clear from the remove list if it was there
       const clearedCustomRoles = {
         ...newCustomRoles,
@@ -366,53 +458,109 @@ export const PlanningStateProvider = ({ children }) => {
           remove: (newDayCustom.remove || []).filter(r => r !== roleName)
         }
       };
-      
+
+      const updatedPlan = { ...currentPlan, customRoles: clearedCustomRoles };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
       return {
         ...prev,
-        plans: prev.plans.map(p => 
-          p.id === prev.currentPlanId 
-            ? { ...p, customRoles: clearedCustomRoles } 
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
             : p
         ),
         newPlanRoleName: '' // Clear input field
       };
     });
-  }, []);
+  }, [savePlanToBackend]);
 
   const removeCustomPlanRole = useCallback((dayType, roleName) => {
     setStore(prev => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
-      
-      const customRoles = currentPlan.customRoles ? 
-        typeof currentPlan.customRoles === 'string' ? 
-          JSON.parse(currentPlan.customRoles) : 
-          currentPlan.customRoles : 
+
+      const customRoles = currentPlan.customRoles ?
+        typeof currentPlan.customRoles === 'string' ?
+          JSON.parse(currentPlan.customRoles) :
+          currentPlan.customRoles :
         {};
-      
+
       const dayCustom = customRoles[dayType] || {};
       const added = dayCustom.add || [];
-      
+
       const newDayCustom = {
         ...dayCustom,
         add: added.filter(r => r !== roleName)
       };
-      
+
       const newCustomRoles = {
         ...customRoles,
         [dayType]: newDayCustom
       };
-      
+
+      const updatedPlan = { ...currentPlan, customRoles: newCustomRoles };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
       return {
         ...prev,
-        plans: prev.plans.map(p => 
-          p.id === prev.currentPlanId 
-            ? { ...p, customRoles: newCustomRoles } 
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
             : p
         )
       };
     });
-  }, []);
+  }, [savePlanToBackend]);
+
+  const renameCustomPlanRole = useCallback((dayType, oldRoleName, newRoleName) => {
+    if (!newRoleName.trim() || oldRoleName === newRoleName) return;
+
+    setStore(prev => {
+      const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
+      if (!currentPlan) return prev;
+
+      const customRoles = currentPlan.customRoles ?
+        typeof currentPlan.customRoles === 'string' ?
+          JSON.parse(currentPlan.customRoles) :
+          currentPlan.customRoles :
+        {};
+
+      const dayCustom = customRoles[dayType] || {};
+      const added = dayCustom.add || [];
+
+      if (!added.includes(oldRoleName)) return prev;
+
+      const newAdded = added.map(r => r === oldRoleName ? newRoleName : r);
+
+      const newDayCustom = {
+        ...dayCustom,
+        add: newAdded
+      };
+
+      const newCustomRoles = {
+        ...customRoles,
+        [dayType]: newDayCustom
+      };
+
+      const updatedPlan = { ...currentPlan, customRoles: newCustomRoles };
+
+      // Auto-save to backend
+      savePlanToBackend(updatedPlan);
+
+      return {
+        ...prev,
+        plans: prev.plans.map(p =>
+          p.id === prev.currentPlanId
+            ? updatedPlan
+            : p
+        )
+      };
+    });
+  }, [savePlanToBackend]);
 
   // Functions for Global Tab
   const addRole = useCallback((dayType, roleName) => {
@@ -422,12 +570,24 @@ export const PlanningStateProvider = ({ children }) => {
       if (!dayRoles.includes(roleName)) {
         newRolesConfig[dayType] = [...dayRoles, roleName];
       }
-      
+
+      // Also update global.roles array to keep it in sync (mock object if needed)
+      // This helps with finding the role object later for renaming/deleting if needed
+      const newRoles = [...(prev.global.roles || [])];
+      // Check if it already exists to avoid duplicates
+      if (!newRoles.some(r => r.nom === roleName)) {
+        newRoles.push({
+          nom: roleName,
+          jour: { ordreAffichage: parseInt(dayType) } // Mock structure
+        });
+      }
+
       return {
         ...prev,
         global: {
           ...prev.global,
-          rolesConfig: newRolesConfig
+          rolesConfig: newRolesConfig,
+          roles: newRoles
         }
       };
     });
@@ -438,7 +598,28 @@ export const PlanningStateProvider = ({ children }) => {
       const newRolesConfig = { ...(prev.global.rolesConfig || {}) };
       const dayRoles = newRolesConfig[dayType] || [];
       newRolesConfig[dayType] = dayRoles.filter(r => r !== roleName);
-      
+
+      return {
+        ...prev,
+        global: {
+          ...prev.global,
+          rolesConfig: newRolesConfig
+        }
+      };
+    });
+  }, []);
+
+  const renameGlobalRole = useCallback((dayType, oldRoleName, newRoleName) => {
+    if (!newRoleName.trim() || oldRoleName === newRoleName) return;
+
+    setStore(prev => {
+      const newRolesConfig = { ...(prev.global.rolesConfig || {}) };
+      const dayRoles = newRolesConfig[dayType] || [];
+
+      if (!dayRoles.includes(oldRoleName)) return prev;
+
+      newRolesConfig[dayType] = dayRoles.map(r => r === oldRoleName ? newRoleName : r);
+
       return {
         ...prev,
         global: {
@@ -460,7 +641,7 @@ export const PlanningStateProvider = ({ children }) => {
     loading: store.loading,
     loadPlans,
     loadSessions,
-    loadPlansBySession,
+    loadAssignmentsForSession,
     loadGlobalData, // Add loadGlobalData to context
     setCurrentPlan,
     setCurrentPlanId,
@@ -479,6 +660,7 @@ export const PlanningStateProvider = ({ children }) => {
     togglePlanRole,
     addCustomPlanRole,
     removeCustomPlanRole,
+    renameCustomPlanRole,
     updatePlanTitle,
     selectAllPeopleForPlan,
     togglePlanPerson,
@@ -492,7 +674,9 @@ export const PlanningStateProvider = ({ children }) => {
     roleDayType,
     setRoleDayType,
     addRole,
-    removeGlobalRole
+    removeGlobalRole,
+    renameGlobalRole,
+    savePlanToBackend // Add savePlanToBackend to context
   };
 
   return (
