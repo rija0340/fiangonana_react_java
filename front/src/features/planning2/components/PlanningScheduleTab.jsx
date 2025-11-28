@@ -345,9 +345,13 @@ const PlanningScheduleTab = () => {
 
     Object.entries(assignments).forEach(([key, personId]) => {
       if (!personId) return;
-      // Fix key parsing: date is always 10 chars (YYYY-MM-DD)
-      const dateStr = key.substring(0, 10);
-      const roleName = key.substring(11);
+
+      // Fix key parsing: Parse the key as date_roleName format (YYYY-MM-DD_roleName)
+      const separatorIndex = key.indexOf('_');
+      if (separatorIndex === -1) return; // Invalid key format
+
+      const dateStr = key.substring(0, separatorIndex);
+      const roleName = key.substring(separatorIndex + 1);
 
       const date = parseYMD(dateStr);
       if (!date) return;
@@ -364,7 +368,7 @@ const PlanningScheduleTab = () => {
     const sortedPeople = [...(currentPlan.selectedPeople || [])].sort((a, b) => {
       const nameA = String(getPersonName(a) || '');
       const nameB = String(getPersonName(b) || '');
-      return nameA.localeCompare(nameB);
+      return String(nameA).localeCompare(String(nameB));
     });
 
     return (
@@ -456,7 +460,7 @@ const PlanningScheduleTab = () => {
     const sortedPeople = [...(currentPlan.selectedPeople || [])].sort((a, b) => {
       const nameA = String(getPersonName(a) || '');
       const nameB = String(getPersonName(b) || '');
-      return nameA.localeCompare(nameB);
+      return String(nameA).localeCompare(String(nameB));
     });
 
     return (
@@ -489,7 +493,9 @@ const PlanningScheduleTab = () => {
 
               // Check history
               const hasNeverDoneRole = !Object.entries(currentPlan.assignments || {}).some(([key, assignee]) => {
-                const assignedRole = key.substring(key.indexOf('_') + 1);
+                const separatorIndex = key.indexOf('_');
+                if (separatorIndex === -1) return false; // Invalid key format
+                const assignedRole = key.substring(separatorIndex + 1);
                 return assignee === personId && assignedRole === modalState.role;
               });
 

@@ -318,13 +318,14 @@ export const PlanningStateProvider = ({ children }) => {
       const currentPlan = prev.plans.find(p => p.id === prev.currentPlanId);
       if (!currentPlan) return prev;
 
-      const allPeopleIds = prev.global.people
-        .filter(p => p && p.id)
-        .map(p => p.id);
+      // Use person_code instead of id for consistency with backend
+      const allPeopleCodes = prev.global.people
+        .filter(p => p && p.person_code)
+        .map(p => p.person_code);
 
       const updatedPlan = {
         ...currentPlan,
-        selectedPeople: selectAll ? allPeopleIds : []
+        selectedPeople: selectAll ? allPeopleCodes : []
       };
 
       // Auto-save to backend

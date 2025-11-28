@@ -528,8 +528,8 @@ const PlanningGlobalTab = () => {
             <button
               className="btn btn-xs btn-outline btn-primary"
               onClick={() => {
-                // Select all visible members
-                const allIds = membres.map(m => m.id);
+                // Select all visible members - use person_code for consistency
+                const allIds = membres.map(m => m.person_code || m.id);
                 setSelectedPeople(allIds);
 
                 setStore(prevStore => ({
